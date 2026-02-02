@@ -16,9 +16,10 @@ export default function MentorsPage() {
   const [mentors, setMentors] = useState([]);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
-
+  const [isLoading, setIsLoading] = useState(true);
   useEffect(() => {
     async function fetchData() {
+      setIsLoading(true);
       try {
         const data = await getMentorsList();
         setMentors(data || []);

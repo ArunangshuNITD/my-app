@@ -117,30 +117,37 @@ export default function Navbar() {
       </div>
 
       {/* 5. Mobile Dropdown Menu */}
-      {isOpen && (
-        <div className="border-t px-6 py-4 md:hidden animate-in slide-in-from-top-5 fade-in duration-200
-          border-zinc-200 bg-white 
-          dark:border-lime-900/30 dark:bg-black">
-          <div className="flex flex-col gap-4">
-            {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                href={link.href}
-                onClick={() => setIsOpen(false)}
-                className="text-base font-medium transition-colors
-                  text-zinc-600 hover:text-indigo-600 
-                  dark:text-zinc-400 dark:hover:text-lime-400"
-              >
-                {link.name}
-              </Link>
-            ))}
-            <hr className="border-zinc-200 dark:border-lime-900/20" />
-            <div className="py-2 flex justify-start">
-               <AuthButton />
-            </div>
-          </div>
-        </div>
-      )}
+{isOpen && (
+  <div className="absolute left-0 top-full w-full border-b px-6 py-8 md:hidden 
+    animate-in slide-in-from-top-2 fade-in duration-300
+    border-zinc-200 bg-white/95 backdrop-blur-xl 
+    dark:border-lime-900/30 dark:bg-black/95">
+    
+    {/* Flex container to center everything */}
+    <div className="flex flex-col items-center justify-center gap-6 text-center">
+      {navLinks.map((link) => (
+        <Link
+          key={link.name}
+          href={link.href}
+          onClick={() => setIsOpen(false)}
+          className="text-lg font-semibold transition-colors
+            text-zinc-700 hover:text-indigo-600 
+            dark:text-zinc-300 dark:hover:text-lime-400"
+        >
+          {link.name}
+        </Link>
+      ))}
+      
+      {/* Visual Divider */}
+      <div className="h-px w-24 bg-gradient-to-r from-transparent via-zinc-200 to-transparent dark:via-lime-900/50" />
+      
+      {/* Auth Button Centered */}
+      <div className="w-full flex justify-center pb-4">
+        <AuthButton />
+      </div>
+    </div>
+  </div>
+)}
     </nav>
   );
 }
