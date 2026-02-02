@@ -1,0 +1,146 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
+import { FiSun, FiMoon } from "react-icons/fi";
+import AuthButton from "./Authbutton";
+
+export default function Navbar() {
+  const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (pathname && pathname.startsWith("/dashboard")) {
+    return null;
+  }
+
+  const navLinks = [
+    { name: "Home", href: "/" },
+    { name: "Find Mentors", href: "/mentors" },
+    { name: "Blogs", href: "/blogs" },
+    { name: "About", href: "/about" },
+    { name: "Contact", href: "/contact" },
+  ];
+
+  const ThemeToggle = () => {
+    if (!mounted) return <div className="w-9 h-9" />;
+
+    return (
+      <button
+        onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        className="flex items-center justify-center h-9 w-9 rounded-full transition-all focus:outline-none ring-1 
+          bg-zinc-100 text-zinc-600 ring-zinc-200 
+          dark:bg-black dark:text-lime-400 dark:ring-lime-500/50 dark:hover:shadow-[0_0_10px_rgba(163,230,53,0.2)]"
+        aria-label="Toggle Dark Mode"
+      >
+        {theme === "dark" ? <FiSun size={18} /> : <FiMoon size={18} />}
+      </button>
+    );
+  };
+
+  return (
+    <nav className="sticky top-0 z-50 w-full transition-colors duration-300 border-b 
+      border-zinc-200 bg-white/80 backdrop-blur-md 
+      dark:border-lime-900/30 dark:bg-black/90">
+      
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 md:px-12">
+        
+        {/* 1. Logo Section */}
+        <Link href="/" className="flex items-center gap-2 group">
+          <div className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg transition-all 
+            bg-indigo-600 group-hover:bg-indigo-500
+            dark:bg-lime-500 dark:group-hover:bg-lime-400">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="h-5 w-5 text-white dark:text-black"
+            >
+              <path d="M4.5 4.5a1.5 1.5 0 00-1.5 1.5v12a1.5 1.5 0 001.5 1.5h2.25a.75.75 0 00.75-.75v-6.75l3.75 3.75a1.5 1.5 0 002.12 0l3.75-3.75v6.75a.75.75 0 00.75-.75h2.25a1.5 1.5 0 001.5-1.5v-12a1.5 1.5 0 00-1.5-1.5h-2.25a1.5 1.5 0 00-1.06.44L12 9.88 7.31 5.19A1.5 1.5 0 006.25 4.5H4.5z" />
+            </svg>
+          </div>
+
+          <span className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">
+            Mentor<span className="text-indigo-600 dark:text-lime-400">Connect</span>
+          </span>
+        </Link>
+
+        {/* 2. Desktop Navigation */}
+        <div className="hidden items-center gap-8 md:flex">
+          {navLinks.map((link) => (
+            <Link
+              key={link.name}
+              href={link.href}
+              className="text-sm font-medium transition-colors 
+                text-zinc-600 hover:text-indigo-600 
+                dark:text-zinc-400 dark:hover:text-lime-400"
+            >
+              {link.name}
+            </Link>
+          ))}
+        </div>
+
+        {/* 3. Auth Buttons & Dark Mode (Desktop) */}
+        <div className="hidden items-center gap-4 md:flex">
+          <ThemeToggle />
+          <div className="h-6 w-px bg-zinc-200 dark:bg-lime-900/30"></div>
+          <AuthButton />
+        </div>
+
+        {/* 4. Mobile Menu Button */}
+        <div className="flex items-center gap-4 md:hidden">
+          <ThemeToggle />
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            className="rounded-md p-2 transition-colors
+              text-zinc-600 hover:bg-zinc-100 
+              dark:text-lime-400 dark:hover:bg-lime-950"
+          >
+            {isOpen ? (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 5. Mobile Dropdown Menu */}
+      {isOpen && (
+        <div className="border-t px-6 py-4 md:hidden animate-in slide-in-from-top-5 fade-in duration-200
+          border-zinc-200 bg-white 
+          dark:border-lime-900/30 dark:bg-black">
+          <div className="flex flex-col gap-4">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                onClick={() => setIsOpen(false)}
+                className="text-base font-medium transition-colors
+                  text-zinc-600 hover:text-indigo-600 
+                  dark:text-zinc-400 dark:hover:text-lime-400"
+              >
+                {link.name}
+              </Link>
+            ))}
+            <hr className="border-zinc-200 dark:border-lime-900/20" />
+            <div className="py-2 flex justify-start">
+               <AuthButton />
+            </div>
+          </div>
+        </div>
+      )}
+    </nav>
+  );
+}
