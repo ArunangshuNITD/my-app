@@ -2,10 +2,13 @@ MENTORCONNECT - PROJECT TREE
 
 Repository root: e:/web dev/mentorconnect/my-app
 
+.gitignore
+.gitattributes
 eslint.config.mjs
 jsconfig.json
 next.config.mjs
 package.json
+package-lock.json
 PAGES_LOGIC.md
 postcss.config.mjs
 README.md
@@ -18,6 +21,8 @@ app/
   loading.js
   not-found.js
   providers.js
+  icon.svg
+  favicon.ico
   about/
     page.js
   actions/
@@ -26,7 +31,7 @@ app/
     dashboard.js
     getMentors.js
     form.js
-    bookingActions.js (duplicate reference - main file above)
+    
   admin/
     verify/
       page.js
@@ -100,6 +105,7 @@ components/
 lib/
   auth.js
   blogData.js
+  cloudinary.js
   db.js
 
 models/
@@ -110,10 +116,15 @@ models/
 
 public/
   uploads/   (intended location for local dev uploads; not recommended for production)
-  default-avatar.png (referenced in pages)
   avatars/   (images referenced in About page)
+  default-avatar.png (referenced in pages)
+  globe.svg
+  file.svg
+  window.svg
+  vercel.svg
+  next.svg
 
-Notes / highlights
+- Notes / highlights
 - Pages split between server components (e.g., profile, mentors/[id], booking pages) and client components (home, blogs, create-post).
 - Server actions live under `app/actions/*` (bookingActions, getMentors, contact).
 - API routes for blogs and next-auth live under `app/api/*`.
@@ -124,4 +135,4 @@ If you want, I can:
 - Run `npm run lint` and report any issues.
 - Generate a JSON or YAML version of this tree for tooling.
 
-Generated on: 2026-01-28
+Generated on: 2026-02-03
