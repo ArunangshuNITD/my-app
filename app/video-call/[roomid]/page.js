@@ -2,51 +2,64 @@
 
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation'; // <--- 1. Import useParams
+import { useEffect, useRef } from 'react';
 
-export default function VideoCallPage({ params }) {
-  const { roomId } = params;
+export default function VideoCallPage() {
+  // 2. Use the hook instead of props
+  const params = useParams();
+  const roomId = params?.roomId; // Safely access roomId
+  
   const { data: session } = useSession();
   const router = useRouter();
+  const containerRef = useRef(null); // Use ref for the container
 
   // Generate unique user info based on login
-  const userId = session?.user?.email || `guest-${Date.now()}`;
+  const userId = session?.user?.email || `guest-${Math.floor(Math.random() * 10000)}`;
   const userName = session?.user?.name || "Guest User";
 
-  const myMeeting = async (element) => {
-    // ---------------------------------------------------------
-    // REPLACE THESE WITH YOUR KEYS FROM ZEGOCLOUD CONSOLE
-    // ---------------------------------------------------------
-    const appID = 123456789; 
-    const serverSecret = "YOUR_SERVER_SECRET_HERE"; 
-    
-    const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-      appID, 
-      serverSecret, 
-      roomId, 
-      userId, 
-      userName
-    );
+  useEffect(() => {
+    // 3. Safety Check: Wait until we have a room ID and a container
+    if (!roomId || !containerRef.current) return;
 
-    const zp = ZegoUIKitPrebuilt.create(kitToken);
+    const myMeeting = async () => {
+      // ---------------------------------------------------------
+      // REPLACE THESE WITH YOUR ACTUAL KEYS
+      // ---------------------------------------------------------
+      const appID = 123456789; // Replace with your numeric App ID
+      const serverSecret = "YOUR_SERVER_SECRET_HERE"; // Replace with your string Secret
 
-    zp.joinRoom({
-      container: element,
-      scenario: {
-        mode: ZegoUIKitPrebuilt.OneONOneCall,
-      },
-      showScreenSharingButton: true,
-      showPreJoinView: false, // Jump straight in
-      onLeaveRoom: () => {
-        // Return to dashboard when call ends
-        router.push('/dashboard'); 
-      }
-    });
-  };
+      const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
+        appID,
+        serverSecret,
+        roomId, // <--- Now guaranteed to exist
+        userId,
+        userName
+      );
+
+      const zp = ZegoUIKitPrebuilt.create(kitToken);
+
+      zp.joinRoom({
+        container: containerRef.current,
+        scenario: {
+          mode: ZegoUIKitPrebuilt.OneONOneCall,
+        },
+        showScreenSharingButton: true,
+        showPreJoinView: false,
+        onLeaveRoom: () => {
+          router.push('/dashboard');
+        }
+      });
+    };
+
+    myMeeting();
+
+  }, [roomId, userId, userName, router, session]); // Re-run if these change
 
   return (
     <div className="w-full h-screen bg-zinc-900 flex flex-col items-center justify-center">
-      <div ref={myMeeting} className="w-full h-full" />
+      {/* 4. Attach ref here */}
+      <div ref={containerRef} className="w-full h-full" />
     </div>
   );
 }
