@@ -2,47 +2,51 @@
 
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
 import { useSession } from 'next-auth/react';
-import { useRouter, useParams } from 'next/navigation'; // <--- 1. Import useParams
+import { useRouter, useParams } from 'next/navigation'; 
 import { useEffect, useRef } from 'react';
 
 export default function VideoCallPage() {
-  // 2. Use the hook instead of props
   const params = useParams();
-  const roomId = params?.roomId; // Safely access roomId
+  const roomId = params?.roomId; 
   
   const { data: session } = useSession();
   const router = useRouter();
-  const containerRef = useRef(null); // Use ref for the container
+  const containerRef = useRef(null); 
 
   // Generate unique user info based on login
   const userId = session?.user?.email || `guest-${Math.floor(Math.random() * 10000)}`;
   const userName = session?.user?.name || "Guest User";
 
   useEffect(() => {
-    // 3. Safety Check: Wait until we have a room ID and a container
+    // Safety Check
     if (!roomId || !containerRef.current) return;
+
+    // 1. Declare the instance variable OUTSIDE the async function
+    // so the cleanup function can access it.
+    let zp; 
 
     const myMeeting = async () => {
       // ---------------------------------------------------------
       // REPLACE THESE WITH YOUR ACTUAL KEYS
       // ---------------------------------------------------------
-      const appID = 123456789; // Replace with your numeric App ID
-      const serverSecret = "YOUR_SERVER_SECRET_HERE"; // Replace with your string Secret
+      const appID = 123456789; 
+      const serverSecret = "YOUR_SERVER_SECRET_HERE"; 
 
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
         appID,
         serverSecret,
-        roomId, // <--- Now guaranteed to exist
+        roomId, 
         userId,
         userName
       );
 
-      const zp = ZegoUIKitPrebuilt.create(kitToken);
+      // 2. Assign the instance to the outer variable
+      zp = ZegoUIKitPrebuilt.create(kitToken);
 
       zp.joinRoom({
         container: containerRef.current,
         scenario: {
-          mode: ZegoUIKitPrebuilt.OneONOneCall,
+          mode: ZegoUIKitPrebuilt.OneONOneCall, // Or .GroupCall if needed
         },
         showScreenSharingButton: true,
         showPreJoinView: false,
@@ -54,11 +58,20 @@ export default function VideoCallPage() {
 
     myMeeting();
 
-  }, [roomId, userId, userName, router, session]); // Re-run if these change
+    // 3. CLEANUP FUNCTION: Destroys the old instance when React re-renders.
+    // This fixes the black screen issue in Strict Mode.
+    return () => {
+      if (zp) {
+        zp.destroy();
+      }
+    };
+
+  }, [roomId, userId, userName, router, session]); 
 
   return (
-    <div className="w-full h-screen bg-zinc-900 flex flex-col items-center justify-center">
-      {/* 4. Attach ref here */}
+    // 4. CSS Fix: usage of h-[calc(100vh-80px)] ensures the video fits 
+    // exactly under your navbar without creating a double scrollbar.
+    <div className="w-full h-[calc(100vh-80px)] bg-zinc-900 flex flex-col items-center justify-center">
       <div ref={containerRef} className="w-full h-full" />
     </div>
   );
