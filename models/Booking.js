@@ -37,9 +37,15 @@ const BookingSchema = new mongoose.Schema(
       enum: ["pending", "confirmed", "rejected", "cancelled", "completed", "ongoing"],
       default: "pending", 
     },
+    // EXISTING: For external links like Zoom/Meet
     meetingLink: {
       type: String, 
     },
+    // NEW: For internal Video Call feature
+    roomId: { 
+      type: String, 
+      default: () => new mongoose.Types.ObjectId().toString() // Auto-generates a unique room ID
+    }, 
   },
   { timestamps: true }
 );

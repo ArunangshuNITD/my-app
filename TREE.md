@@ -15,124 +15,159 @@ README.md
 tailwind.config.js
 
 app/
-  page.js
-  globals.css
-  layout.js
-  loading.js
-  not-found.js
-  providers.js
-  icon.svg
-  favicon.ico
-  about/
-    page.js
-  actions/
-    bookingActions.js
-    contact.js
-    dashboard.js
-    getMentors.js
-    form.js
-    
-  admin/
-    verify/
-      page.js
-  api/
-    auth/
-      [...nextauth]/
-        route.js
-    blogs/
-      route.js
-      [id]/
-        route.js
-        comment/
-          route.js
-          [commentId]/
-            route.js
-        upvote/
-          route.js
-    // (other API routes if present)
-  become-mentor/
-    page.js
-  blogs/
-    page.js
-  booking-error/
-    page.js
-  contact/
-    page.js
-  create-post/
-    page.js
-  dashboard/
+  ```markdown
+  MENTORCONNECT - FULL PROJECT TREE
+
+  Repository root: e:/web dev/mentorconnect/my-app
+
+  .gitignore
+  .gitattributes
+  eslint.config.mjs
+  jsconfig.json
+  next.config.mjs
+  package.json
+  package-lock.json
+  PAGES_LOGIC.md
+  postcss.config.mjs
+  README.md
+  tailwind.config.js
+  TREE.md
+
+  app/
+    globals.css
     layout.js
+    loading.js
+    not-found.js
     page.js
-    add-mentor/
+    providers.js
+    icon.svg
+    favicon.ico
+
+    about/
       page.js
+
+    access-denied/
+      page.js
+
+    actions/
+      bookingActions.js
+      contact.js
+      dashboard.js
+      form.js
+      getMentors.js
+
+    admin/
+      verify/
+        page.js
+
+    api/
+      auth/
+        [...nextauth]/
+          route.js
+      blogs/
+        route.js
+        [id]/
+          route.js
+          upvote/
+            route.js
+          comment/
+            route.js
+            [commentId]/
+              route.js
+      chat/
+        route.js
+
+    become-mentor/
+      page.js
+
     blogs/
       page.js
-    messages/
+
+    booking-error/
       page.js
-  how-it-works/
-    page.js
-  mentors/
-    page.js
-    add/
+
+    contact/
       page.js
-    [id]/
+
+    create-post/
       page.js
-      book/
+
+    dashboard/
+      layout.js
+      page.js
+      add-mentor/
         page.js
+      blogs/
+        page.js
+      messages/
+        page.js
+
+    how-it-works/
+      page.js
+
+    mentors/
+      page.js
+      [id]/
+        page.js
+        book/
+          page.js
+            success/
+              page.js
+        edit/
+          page.js
+      add/
+        page.js
+      apply/
         success/
           page.js
-      edit/
-        page.js
-    apply/
-      success/
-        page.js
-  profile/
-    page.js
-  success-stories/
-    page.js
-  booking-error/
-    page.js
 
-components/
-  Authbutton.js
-  BookingManager.js
-  CommentNode.js
-  Footer.js
-  Navbar.js
-  Providers.js
-  StudentBookingList.js
+    profile/
+      page.js
 
-lib/
-  auth.js
-  blogData.js
-  cloudinary.js
-  db.js
+    success-stories/
+      page.js
 
-models/
-  Blog.js
-  Booking.js
-  Contact.js
-  Mentor.js
+  components/
+    Authbutton.js
+    BookingManager.js
+    Chatbot.js
+    CommentNode.js
+    CountdownTimr.js
+    Footer.js
+    Navbar.js
+    Providers.js
+    StudentBookingList.js
 
-public/
-  uploads/   (intended location for local dev uploads; not recommended for production)
-  avatars/   (images referenced in About page)
-  default-avatar.png (referenced in pages)
-  globe.svg
-  file.svg
-  window.svg
-  vercel.svg
-  next.svg
+  lib/
+    auth.js
+    blogData.js
+    cloudinary.js
+    db.js
 
-- Notes / highlights
-- Pages split between server components (e.g., profile, mentors/[id], booking pages) and client components (home, blogs, create-post).
-- Server actions live under `app/actions/*` (bookingActions, getMentors, contact).
-- API routes for blogs and next-auth live under `app/api/*`.
-- Use `public/uploads` for local/dev file storage only; production should use object storage (S3/Cloudinary).
+  models/
+    Blog.js
+    Booking.js
+    Contact.js
+    Mentor.js
 
-If you want, I can:
-- Add file links with line numbers for key functions into `PAGES_LOGIC.md`.
-- Run `npm run lint` and report any issues.
-- Generate a JSON or YAML version of this tree for tooling.
+  public/
+    uploads/   (local dev uploads; prefer cloud storage in production)
+    window.svg
+    vercel.svg
+    next.svg
+    file.svg
+    globe.svg
 
-Generated on: 2026-02-03
+  - Notes / highlights
+  - Server actions live under `app/actions/*` (bookingActions, getMentors, contact, form).
+  - API routes for blogs, chat, and next-auth live under `app/api/*`.
+  - Pages and components are a mix of server and client components; check files for `use client` where needed.
+
+  If you want, I can:
+  - Add file links with line numbers for key functions into `PAGES_LOGIC.md`.
+  - Run `npm run lint` and report any issues.
+  - Generate a JSON or YAML version of this tree for tooling.
+
+  Generated on: 2026-02-04
+
+  ```
