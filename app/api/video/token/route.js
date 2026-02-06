@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { getServerSession } from "next-auth/next"; // Adjust import based on your Auth setup
-// import { authOptions } from "@/app/api/auth/[...nextauth]/route"; // Uncomment if using NextAuth v4
 
 export async function GET() {
   try {
     // 1. Check for Authentication
-    // const session = await getServerSession(authOptions); 
-    // if (!session) {
-    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    // }
 
     const API_KEY = process.env.VIDEOSDK_API_KEY;
     const SECRET = process.env.VIDEOSDK_SECRET;
