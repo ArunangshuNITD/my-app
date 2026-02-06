@@ -1,65 +1,73 @@
 "use client";
 
-import { 
-  FaCalendarDay, 
-  FaClock, 
-  FaChalkboardTeacher, 
+import {
+  FaCalendarDay,
+  FaClock,
+  FaChalkboardTeacher,
   FaVideo,
   FaHourglassHalf,
   FaCheckCircle,
   FaTimesCircle,
   FaCheckDouble
 } from "react-icons/fa";
-import Link from "next/link"; 
+import Link from "next/link";
 import { useState, useEffect } from "react";
-import CountdownTimer from "./CountdownTimr"; 
+import CountdownTimer from "./CountdownTimr";
 
 export default function StudentBookingList({ bookings = [] }) {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    // Update the "current time" every minute to refresh the "Join" button state
-    const timer = setInterval(() => setNow(new Date()), 60000); 
+    // Updates 'now' every 30 seconds for higher precision on button appearance
+    const timer = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(timer);
   }, []);
 
   const isSessionActive = (booking) => {
-    if (booking.status !== "confirmed" && booking.status !== "ongoing") return false;
+    // 1. Basic check: Ignore if status isn't right or data is missing
+    if (!booking || (booking.status !== "confirmed" && booking.status !== "ongoing")) return false;
     if (!booking.timeSlot || typeof booking.timeSlot !== "string") return false;
 
     try {
-      const bookingDate = new Date(booking.date);
+      const bDate = new Date(booking.date);
+      const dateStr = bDate.toISOString().split('T')[0];
+
+      // Split the slot. If it's not "TIME - TIME", exit early.
       const parts = booking.timeSlot.split(" - ");
-      if (parts.length !== 2) return false; 
+      if (parts.length !== 2) return false;
 
       const [startTimeStr, endTimeStr] = parts;
-      
-      const parseTime = (dateBase, timeStr) => {
-        if (!timeStr) return null;
-        const cleanTime = timeStr.trim();
-        const [time, modifier] = cleanTime.split(" ");
-        if (!time || !modifier) return null;
 
+      const parseTime = (dateString, timeStr) => {
+        // DEFENSIVE CHECK: Ensure timeStr exists and is a string
+        if (!timeStr || typeof timeStr !== 'string') return null;
+
+        const trimmed = timeStr.trim();
+        const timeParts = trimmed.split(" ");
+        if (timeParts.length !== 2) return null; // Expected "09:00 AM"
+
+        const [time, modifier] = timeParts;
         let [hours, minutes] = time.split(":");
-        if (hours === "12") hours = "00";
-        if (modifier === "PM") hours = parseInt(hours, 10) + 12;
-        
-        const d = new Date(dateBase);
-        d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
-        return d;
+
+        let h = parseInt(hours, 10);
+        if (modifier === "PM" && h < 12) h += 12;
+        if (modifier === "AM" && h === 12) h = 0;
+
+        // Construct ISO string safely
+        const combined = new Date(`${dateString}T${h.toString().padStart(2, '0')}:${minutes}:00`);
+        return isNaN(combined.getTime()) ? null : combined;
       };
 
-      const startDate = parseTime(bookingDate, startTimeStr);
-      const endDate = parseTime(bookingDate, endTimeStr);
+      const startDate = parseTime(dateStr, startTimeStr);
+      const endDate = parseTime(dateStr, endTimeStr);
 
+      // If parsing failed for either time, don't show the button
       if (!startDate || !endDate) return false;
 
-      // New: Allow joining 15 minutes early for the new VideoSDK room
-      const joinWindowStart = new Date(startDate.getTime() - 15 * 60000); 
-
-      return now >= joinWindowStart && now <= endDate;
+      const bufferBefore = 15 * 60 * 1000; // 15 mins
+      return now >= (startDate.getTime() - bufferBefore) && now <= endDate.getTime();
     } catch (e) {
-      console.error("Date parsing error:", booking._id, e);
+      console.warn("Skipping malformed booking:", booking._id);
       return false;
     }
   };
@@ -76,93 +84,97 @@ export default function StudentBookingList({ bookings = [] }) {
     <div className="space-y-4">
       {bookings.map((booking) => {
         const canJoin = isSessionActive(booking);
-        
-        // We use the booking ID as the fallback room ID for VideoSDK
         const activeRoomId = booking.roomId || booking._id;
 
         return (
-          <div 
-            key={booking._id} 
-            className={`border p-5 rounded-xl shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all
-              ${booking.status === "completed" 
-                  ? "bg-zinc-50 border-zinc-200 dark:bg-zinc-900/50 dark:border-zinc-800 opacity-75" 
-                  : canJoin || booking.status === "ongoing"
-                  ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800 shadow-md ring-1 ring-indigo-500"
+          <div
+            key={booking._id}
+            className={`border p-5 rounded-xl shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-all duration-300
+              ${booking.status === "completed"
+                ? "bg-zinc-50 border-zinc-200 dark:bg-zinc-900/50 dark:border-zinc-800 opacity-75"
+                : canJoin || booking.status === "ongoing"
+                  ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-600 shadow-lg ring-1 ring-indigo-500"
                   : "bg-white border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800"}`}
           >
-            {/* Left: Mentor & Time Info */}
-            <div>
+            {/* Left Side: Session Info */}
+            <div className="flex-1">
               <h4 className="font-bold text-zinc-900 dark:text-white flex items-center gap-2 text-lg">
-                <FaChalkboardTeacher className={booking.status === "completed" ? "text-zinc-400" : "text-indigo-500"} /> 
+                <FaChalkboardTeacher className={booking.status === "completed" ? "text-zinc-400" : "text-indigo-500"} />
                 {booking.mentorName || "Professional Mentoring"}
               </h4>
-              <div className="flex flex-wrap gap-4 text-sm text-zinc-500 mt-2">
+              <div className="flex flex-wrap gap-4 text-sm text-zinc-500 mt-2 font-medium">
                 <span className="flex items-center gap-1.5">
-                  <FaCalendarDay /> {new Date(booking.date).toLocaleDateString('en-GB')}
+                  <FaCalendarDay className="text-zinc-400" /> {new Date(booking.date).toLocaleDateString('en-GB')}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <FaClock /> {booking.timeSlot}
+                  <FaClock className="text-zinc-400" /> {booking.timeSlot}
                 </span>
               </div>
             </div>
 
-            {/* Right: Actions */}
-            <div className="flex flex-col items-end gap-3">
+            {/* Right Side: Status and Joining Button */}
+            <div className="flex flex-col items-end gap-3 min-w-[160px]">
+
+              {/* STATUS: PENDING */}
               {booking.status === "pending" && (
-                <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold uppercase">
-                  <FaHourglassHalf /> Awaiting Approval
+                <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold uppercase tracking-tight">
+                  <FaHourglassHalf /> Pending
                 </div>
               )}
 
-              {booking.status === "confirmed" && !canJoin && (
-                <div className="flex flex-col items-end gap-2">
-                  <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold uppercase">
-                    <FaCheckCircle /> Confirmed
-                  </div>
-                  <CountdownTimer targetDate={booking.date} timeSlot={booking.timeSlot} />
-                </div>
-              )}
-
-              {(canJoin || booking.status === "ongoing") && (
-                <div className="flex flex-col items-end animate-in fade-in slide-in-from-right-4 duration-500">
-                   <div className="flex items-center gap-2 mb-2">
-                      <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
-                      </span>
-                      <span className="text-xs font-extrabold text-rose-600 uppercase tracking-wider">Live Now</span>
-                   </div>
-                   
-                   {/* Logic to choose between an external link (Zoom/Google Meet) or your New Internal Room */}
-                   {booking.meetingLink ? (
-                     <a 
-                       href={booking.meetingLink} 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex items-center gap-2 bg-zinc-900 hover:bg-black text-white px-6 py-2.5 rounded-lg font-bold shadow-lg transition-all active:scale-95"
-                     >
-                        <FaVideo /> Join External Meeting
-                     </a>
-                   ) : (
-                     <Link 
-                       href={`/video-call/${activeRoomId}`}
-                       className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg transition-all active:scale-95 border-b-4 border-indigo-800"
-                     >
-                        <FaVideo /> Enter Classroom
-                     </Link>
-                   )}
-                </div>
-              )}
-
+              {/* STATUS: REJECTED */}
               {booking.status === "rejected" && (
-                <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold uppercase">
+                <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold uppercase tracking-tight">
                   <FaTimesCircle /> Declined
                 </div>
               )}
-              
+
+              {/* STATUS: COMPLETED */}
               {booking.status === "completed" && (
-                 <div className="flex items-center gap-2 px-3 py-1 bg-zinc-200 text-zinc-700 rounded-full text-xs font-bold uppercase">
+                <div className="flex items-center gap-2 px-3 py-1 bg-zinc-200 text-zinc-700 rounded-full text-xs font-bold uppercase tracking-tight">
                   <FaCheckDouble /> Session Ended
+                </div>
+              )}
+
+              {/* STATUS: CONFIRMED (But not yet joinable) */}
+              {booking.status === "confirmed" && !canJoin && (
+                <div className="flex flex-col items-end gap-2 animate-in fade-in duration-700">
+                  <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold uppercase tracking-tight">
+                    <FaCheckCircle /> Confirmed
+                  </div>
+                  <CountdownTimer targetDate={booking.date} timeSlot={booking.timeSlot} />
+                  <p className="text-[10px] text-zinc-400 font-medium">Link activates 15m early</p>
+                </div>
+              )}
+
+              {/* STATUS: LIVE / JOINABLE */}
+              {(canJoin || booking.status === "ongoing") && (
+                <div className="flex flex-col items-end animate-in zoom-in-95 duration-300">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                    </span>
+                    <span className="text-xs font-extrabold text-rose-600 uppercase tracking-widest">Ongoing Now</span>
+                  </div>
+
+                  {booking.meetingLink ? (
+                    <a
+                      href={booking.meetingLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 bg-zinc-900 hover:bg-black text-white px-6 py-2.5 rounded-xl font-bold shadow-xl transition-all hover:scale-105 active:scale-95"
+                    >
+                      <FaVideo /> Join Meeting
+                    </a>
+                  ) : (
+                    <Link
+                      href={`/video-call/${activeRoomId}`}
+                      className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-extrabold shadow-xl transition-all hover:scale-105 active:scale-95 border-b-4 border-indigo-900"
+                    >
+                      <FaVideo /> Join Classroom
+                    </Link>
+                  )}
                 </div>
               )}
             </div>
