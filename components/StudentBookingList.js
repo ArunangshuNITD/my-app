@@ -18,42 +18,30 @@ export default function StudentBookingList({ bookings = [] }) {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
-    // Updates 'now' every 30 seconds for higher precision on button appearance
+    // Updates every 30 seconds for real-time button activation
     const timer = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(timer);
   }, []);
 
   const isSessionActive = (booking) => {
-    // 1. Basic check: Ignore if status isn't right or data is missing
     if (!booking || (booking.status !== "confirmed" && booking.status !== "ongoing")) return false;
     if (!booking.timeSlot || typeof booking.timeSlot !== "string") return false;
 
     try {
       const bDate = new Date(booking.date);
       const dateStr = bDate.toISOString().split('T')[0];
-
-      // Split the slot. If it's not "TIME - TIME", exit early.
       const parts = booking.timeSlot.split(" - ");
       if (parts.length !== 2) return false;
 
       const [startTimeStr, endTimeStr] = parts;
 
       const parseTime = (dateString, timeStr) => {
-        // DEFENSIVE CHECK: Ensure timeStr exists and is a string
         if (!timeStr || typeof timeStr !== 'string') return null;
-
-        const trimmed = timeStr.trim();
-        const timeParts = trimmed.split(" ");
-        if (timeParts.length !== 2) return null; // Expected "09:00 AM"
-
-        const [time, modifier] = timeParts;
+        const [time, modifier] = timeStr.trim().split(" ");
         let [hours, minutes] = time.split(":");
-
         let h = parseInt(hours, 10);
         if (modifier === "PM" && h < 12) h += 12;
         if (modifier === "AM" && h === 12) h = 0;
-
-        // Construct ISO string safely
         const combined = new Date(`${dateString}T${h.toString().padStart(2, '0')}:${minutes}:00`);
         return isNaN(combined.getTime()) ? null : combined;
       };
@@ -61,13 +49,11 @@ export default function StudentBookingList({ bookings = [] }) {
       const startDate = parseTime(dateStr, startTimeStr);
       const endDate = parseTime(dateStr, endTimeStr);
 
-      // If parsing failed for either time, don't show the button
       if (!startDate || !endDate) return false;
 
-      const bufferBefore = 15 * 60 * 1000; // 15 mins
+      const bufferBefore = 15 * 60 * 1000; 
       return now >= (startDate.getTime() - bufferBefore) && now <= endDate.getTime();
     } catch (e) {
-      console.warn("Skipping malformed booking:", booking._id);
       return false;
     }
   };
@@ -84,7 +70,8 @@ export default function StudentBookingList({ bookings = [] }) {
     <div className="space-y-4">
       {bookings.map((booking) => {
         const canJoin = isSessionActive(booking);
-        const activeRoomId = booking.roomId || booking._id;
+        // Ensure activeRoomId is always a string and falls back to booking ID
+        const activeRoomId = (booking.roomId || booking._id).toString();
 
         return (
           <div
@@ -96,11 +83,10 @@ export default function StudentBookingList({ bookings = [] }) {
                   ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-600 shadow-lg ring-1 ring-indigo-500"
                   : "bg-white border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800"}`}
           >
-            {/* Left Side: Session Info */}
             <div className="flex-1">
               <h4 className="font-bold text-zinc-900 dark:text-white flex items-center gap-2 text-lg">
                 <FaChalkboardTeacher className={booking.status === "completed" ? "text-zinc-400" : "text-indigo-500"} />
-                {booking.mentorName || "Professional Mentoring"}
+                {booking.mentorName || booking.studentName || "Mentoring Session"}
               </h4>
               <div className="flex flex-wrap gap-4 text-sm text-zinc-500 mt-2 font-medium">
                 <span className="flex items-center gap-1.5">
@@ -112,42 +98,35 @@ export default function StudentBookingList({ bookings = [] }) {
               </div>
             </div>
 
-            {/* Right Side: Status and Joining Button */}
             <div className="flex flex-col items-end gap-3 min-w-[160px]">
-
-              {/* STATUS: PENDING */}
               {booking.status === "pending" && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-xs font-bold uppercase tracking-tight">
                   <FaHourglassHalf /> Pending
                 </div>
               )}
 
-              {/* STATUS: REJECTED */}
               {booking.status === "rejected" && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold uppercase tracking-tight">
                   <FaTimesCircle /> Declined
                 </div>
               )}
 
-              {/* STATUS: COMPLETED */}
               {booking.status === "completed" && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-zinc-200 text-zinc-700 rounded-full text-xs font-bold uppercase tracking-tight">
                   <FaCheckDouble /> Session Ended
                 </div>
               )}
 
-              {/* STATUS: CONFIRMED (But not yet joinable) */}
               {booking.status === "confirmed" && !canJoin && (
                 <div className="flex flex-col items-end gap-2 animate-in fade-in duration-700">
                   <div className="flex items-center gap-2 px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold uppercase tracking-tight">
                     <FaCheckCircle /> Confirmed
                   </div>
                   <CountdownTimer targetDate={booking.date} timeSlot={booking.timeSlot} />
-                  <p className="text-[10px] text-zinc-400 font-medium">Link activates 15m early</p>
+                  <p className="text-[10px] text-zinc-400 font-medium text-right">Link activates 15m early</p>
                 </div>
               )}
 
-              {/* STATUS: LIVE / JOINABLE */}
               {(canJoin || booking.status === "ongoing") && (
                 <div className="flex flex-col items-end animate-in zoom-in-95 duration-300">
                   <div className="flex items-center gap-2 mb-2">

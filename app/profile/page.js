@@ -17,7 +17,8 @@ import {
   FaUserEdit,
   FaExternalLinkAlt,
   FaCalendarCheck,
-  FaHistory
+  FaHistory,
+  FaVideo
 } from "react-icons/fa";
 
 export default async function ProfilePage() {
@@ -44,6 +45,11 @@ export default async function ProfilePage() {
   
   // 2. ALWAYS fetch outgoing requests (For Me as a Student/User)
   studentHistory = await getStudentBookings(session.user.email);
+
+  // Filter confirmed sessions for the Mentor to "Join"
+  const mentorActiveSessions = isApprovedMentor 
+    ? historyIncomingBookings.filter(b => b.status === "confirmed" || b.status === "ongoing")
+    : [];
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black py-12 px-6">
@@ -100,48 +106,55 @@ export default async function ProfilePage() {
                       <div className="p-3 bg-purple-100 dark:bg-purple-800 rounded-lg text-purple-600 dark:text-purple-200">
                         <FaCheckCircle size={24} />
                       </div>
-                      <div>
+                      <div className="flex-1">
                         <h4 className="text-lg font-bold text-purple-900 dark:text-purple-200 mb-1">
                           Profile Active
                         </h4>
                         <div className="flex flex-wrap gap-3 mt-3">
                           <Link href={`/mentors/${mentorProfile._id}`} className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors">
-                             View Public Profile <FaExternalLinkAlt size={12} />
+                              View Public Profile <FaExternalLinkAlt size={12} />
                           </Link>
                           <Link href={`/mentors/${mentorProfile._id}/edit`} className="inline-flex items-center gap-2 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-white border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 px-4 py-2 rounded-lg font-medium text-sm transition-colors">
-                             Edit Profile <FaUserEdit size={14} />
+                              Edit Profile <FaUserEdit size={14} />
                           </Link>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Incoming Requests Manager */}
+                  {/* NEW: Mentor's Active/Upcoming Classes (Join Button Here) */}
+                  {mentorActiveSessions.length > 0 && (
+                    <div className="pt-4">
+                      <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                        <FaVideo className="text-rose-500" /> Your Teaching Schedule
+                      </h3>
+                      <StudentBookingList bookings={mentorActiveSessions} />
+                    </div>
+                  )}
+
+                  {/* Incoming Requests Manager (Management Queue) */}
                   <div>
                       <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
-                          <FaCalendarCheck className="text-indigo-500" /> Session Management (Incoming)
+                          <FaCalendarCheck className="text-indigo-500" /> Session Management (Inbox)
                       </h3>
-                      {/* FIXED PROP NAME HERE: incomingBookings */}
                       <BookingManager 
                         incomingBookings={pendingIncomingBookings} 
                         historyBookings={historyIncomingBookings} 
                       />
                   </div>
 
-                  {/* Outgoing Requests (My Learning) */}
+                  {/* Outgoing Requests (Mentor as a Student) */}
                   <div className="pt-8 border-t border-zinc-100 dark:border-zinc-800">
                     <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
-                       <FaHistory className="text-zinc-500" /> My Learning (Outgoing Requests)
+                       <FaHistory className="text-zinc-500" /> My Learning (As Student)
                     </h3>
                     <StudentBookingList bookings={studentHistory} />
                   </div>
                 </div>
               ) : (
-                
                 /* STUDENT VIEW */
                 <>
                   <div className="pt-2 space-y-8">
-                    
                     {/* Welcome Card */}
                     <div>
                       <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
@@ -204,7 +217,6 @@ export default async function ProfilePage() {
                   </div>
                 </>
               )}
-
             </div>
           </div>
         </div>
