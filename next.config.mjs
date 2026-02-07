@@ -11,6 +11,9 @@ const nextConfig = {
   },
   experimental: {
     authInterrupts: true,
+    serverActions: {
+      bodySizeLimit: "20mb", // or "50mb"
+    },
   },
 };
 

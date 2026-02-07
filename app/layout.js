@@ -1,3 +1,4 @@
+// app/layout.js
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -17,14 +18,14 @@ export default function RootLayout({ children }) {
         <Providers>
           <div className="flex min-h-screen flex-col">
             <Navbar />
-            <main className="flex-grow">{children}</main>
+            <main className="flex-grow">
+              {/* Just render children directly here */}
+              {children}
+            </main>
             <Footer />
           </div>
-
-          {/* 🔥 Floating AI Chatbot (GLOBAL) */}
           <Chatbot />
         </Providers>
-
         <Analytics />
       </body>
     </html>

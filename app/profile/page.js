@@ -16,6 +16,7 @@ import {
   FaArrowRight,
   FaUserEdit,
   FaExternalLinkAlt,
+  FaFilePdf,
   FaCalendarCheck,
   FaHistory,
   FaVideo
@@ -90,6 +91,11 @@ export default async function ProfilePage() {
                 <p className="text-zinc-500 flex items-center gap-2 mt-1">
                   <FaEnvelope className="text-zinc-400" /> {session.user.email}
                 </p>
+                <div className="mt-3 flex items-center gap-3">
+                  <Link href="/profile/sell-pdf" className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors">
+                    <FaFilePdf /> Sell products
+                  </Link>
+                </div>
               </div>
 
               <hr className="border-zinc-100 dark:border-zinc-800" />
