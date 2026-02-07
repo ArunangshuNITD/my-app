@@ -2,7 +2,7 @@
 
 import { ThemeProvider } from "next-themes";
 import { SessionProvider } from "next-auth/react";
-
+import { CartProvider } from "@/context/CartContext";
 export default function Providers({ children }) {
   return (
     <SessionProvider>
@@ -11,7 +11,9 @@ export default function Providers({ children }) {
         enableSystem enables the system preference detection.
       */}
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        {children}
+        <CartProvider>
+          {children}
+        </CartProvider>
       </ThemeProvider>
     </SessionProvider>
   );

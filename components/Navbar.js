@@ -4,14 +4,16 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { FiSun, FiMoon } from "react-icons/fi";
+import { FiSun, FiMoon ,FiShoppingCart} from "react-icons/fi";
 import AuthButton from "./Authbutton";
+import { useCart } from "@/context/CartContext";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const { cart } = useCart();
 
   useEffect(() => {
     setMounted(true);
@@ -50,9 +52,9 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 w-full transition-colors duration-300 border-b 
       border-zinc-200 bg-white/80 backdrop-blur-md 
       dark:border-lime-900/30 dark:bg-black/90">
-      
+
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 md:px-12">
-        
+
         {/* 1. Logo Section */}
         <Link href="/" className="flex items-center gap-2 group">
           <div className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg transition-all 
@@ -90,11 +92,21 @@ export default function Navbar() {
 
         {/* 3. Auth Buttons & Dark Mode (Desktop) */}
         <div className="hidden items-center gap-4 md:flex">
+
+          {/* Cart Icon */}
+          <Link href="/cart" className="relative p-2 text-zinc-600 dark:text-lime-400 hover:text-indigo-600 transition-colors">
+            <FiShoppingCart size={22} />
+            {cart.length > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                {cart.length}
+              </span>
+            )}
+          </Link>
+
           <ThemeToggle />
           <div className="h-6 w-px bg-zinc-200 dark:bg-lime-900/30"></div>
           <AuthButton />
         </div>
-
         {/* 4. Mobile Menu Button */}
         <div className="flex items-center gap-4 md:hidden">
           <ThemeToggle />
@@ -118,37 +130,37 @@ export default function Navbar() {
       </div>
 
       {/* 5. Mobile Dropdown Menu */}
-{isOpen && (
-  <div className="absolute left-0 top-full w-full border-b px-6 py-8 md:hidden 
+      {isOpen && (
+        <div className="absolute left-0 top-full w-full border-b px-6 py-8 md:hidden 
     animate-in slide-in-from-top-2 fade-in duration-300
     border-zinc-200 bg-white/95 backdrop-blur-xl 
     dark:border-lime-900/30 dark:bg-black/95">
-    
-    {/* Flex container to center everything */}
-    <div className="flex flex-col items-center justify-center gap-6 text-center">
-      {navLinks.map((link) => (
-        <Link
-          key={link.name}
-          href={link.href}
-          onClick={() => setIsOpen(false)}
-          className="text-lg font-semibold transition-colors
+
+          {/* Flex container to center everything */}
+          <div className="flex flex-col items-center justify-center gap-6 text-center">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                onClick={() => setIsOpen(false)}
+                className="text-lg font-semibold transition-colors
             text-zinc-700 hover:text-indigo-600 
             dark:text-zinc-300 dark:hover:text-lime-400"
-        >
-          {link.name}
-        </Link>
-      ))}
-      
-      {/* Visual Divider */}
-      <div className="h-px w-24 bg-gradient-to-r from-transparent via-zinc-200 to-transparent dark:via-lime-900/50" />
-      
-      {/* Auth Button Centered */}
-      <div className="w-full flex justify-center pb-4">
-        <AuthButton />
-      </div>
-    </div>
-  </div>
-)}
+              >
+                {link.name}
+              </Link>
+            ))}
+
+            {/* Visual Divider */}
+            <div className="h-px w-24 bg-gradient-to-r from-transparent via-zinc-200 to-transparent dark:via-lime-900/50" />
+
+            {/* Auth Button Centered */}
+            <div className="w-full flex justify-center pb-4">
+              <AuthButton />
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

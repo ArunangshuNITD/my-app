@@ -1,4 +1,4 @@
-import connectDB from "@/lib/db";
+import dbConnect from "@/lib/db";
 import Product from "@/models/Product";
 import mongoose from "mongoose";
 
@@ -14,7 +14,7 @@ export async function GET(req, { params }) {
       );
     }
 
-    await connectDB();
+    await dbConnect();
 
     const product = await Product.findById(id).lean();
 

@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import dbConnect from "@/lib/db";
 import Mentor from "@/models/Mentor"; 
+import Order from "@/models/Order"; // <--- IMPORT THIS
 import { getIncomingBookings, getStudentBookings, getMentorBookingHistory } from "@/app/actions/bookingActions";
 import BookingManager from "@/components/BookingManager"; 
 import StudentBookingList from "@/components/StudentBookingList"; 
@@ -19,7 +20,8 @@ import {
   FaFilePdf,
   FaCalendarCheck,
   FaHistory,
-  FaVideo
+  FaVideo,
+  FaShoppingBag // <--- ADDED ICON
 } from "react-icons/fa";
 
 export default async function ProfilePage() {
@@ -30,24 +32,26 @@ export default async function ProfilePage() {
   }
 
   await dbConnect();
+  
+  // 1. Fetch Mentor Profile
   const mentorProfile = await Mentor.findOne({ email: session.user.email });
   const isApprovedMentor = mentorProfile?.applicationStatus === "approved";
 
-  // --- DATA FETCHING ---
+  // 2. Fetch Orders (Purchased Items) <--- NEW LOGIC
+  const myOrders = await Order.find({ userEmail: session.user.email }).sort({ createdAt: -1 });
+
+  // 3. Fetch Bookings
   let pendingIncomingBookings = []; 
   let historyIncomingBookings = []; 
   let studentHistory = [];          
 
   if (isApprovedMentor) {
-    // 1. Get Incoming Requests (For Me as a Mentor)
     pendingIncomingBookings = await getIncomingBookings(session.user.email);
     historyIncomingBookings = await getMentorBookingHistory(session.user.email);
   }
   
-  // 2. ALWAYS fetch outgoing requests (For Me as a Student/User)
   studentHistory = await getStudentBookings(session.user.email);
 
-  // Filter confirmed sessions for the Mentor to "Join"
   const mentorActiveSessions = isApprovedMentor 
     ? historyIncomingBookings.filter(b => b.status === "confirmed" || b.status === "ongoing")
     : [];
@@ -128,7 +132,7 @@ export default async function ProfilePage() {
                     </div>
                   </div>
 
-                  {/* NEW: Mentor's Active/Upcoming Classes (Join Button Here) */}
+                  {/* Mentor's Active/Upcoming Classes */}
                   {mentorActiveSessions.length > 0 && (
                     <div className="pt-4">
                       <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
@@ -138,7 +142,7 @@ export default async function ProfilePage() {
                     </div>
                   )}
 
-                  {/* Incoming Requests Manager (Management Queue) */}
+                  {/* Incoming Requests Manager */}
                   <div>
                       <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
                           <FaCalendarCheck className="text-indigo-500" /> Session Management (Inbox)
@@ -149,7 +153,7 @@ export default async function ProfilePage() {
                       />
                   </div>
 
-                  {/* Outgoing Requests (Mentor as a Student) */}
+                  {/* Outgoing Requests */}
                   <div className="pt-8 border-t border-zinc-100 dark:border-zinc-800">
                     <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
                        <FaHistory className="text-zinc-500" /> My Learning (As Student)
@@ -223,6 +227,48 @@ export default async function ProfilePage() {
                   </div>
                 </>
               )}
+
+              {/* --- PURCHASED ITEMS SECTION (Available for BOTH Students & Mentors) --- */}
+              <div className="pt-8 border-t border-zinc-100 dark:border-zinc-800">
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                   <FaShoppingBag className="text-green-600" /> My Purchases
+                </h3>
+                
+                {myOrders.length === 0 ? (
+                    <p className="text-zinc-500 italic">No items purchased yet.</p>
+                ) : (
+                    <div className="space-y-4">
+                        {myOrders.map((order) => (
+                            <div key={order._id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900/50">
+                                <div className="flex justify-between items-center mb-3 text-sm text-zinc-500">
+                                    <span>Date: {new Date(order.createdAt).toLocaleDateString()}</span>
+                                    <span className="font-medium px-2 py-1 bg-green-100 text-green-700 rounded text-xs">{order.status}</span>
+                                </div>
+                                <div className="space-y-3">
+                                    {order.items.map((item, idx) => (
+                                        <div key={idx} className="flex gap-4 items-center">
+                                            {item.coverImage ? (
+                                                <img src={item.coverImage} alt={item.name} className="w-12 h-12 object-cover rounded-md bg-zinc-100" />
+                                            ) : (
+                                                <div className="w-12 h-12 bg-zinc-200 rounded-md flex items-center justify-center text-xs">IMG</div>
+                                            )}
+                                            <div>
+                                                <p className="font-medium text-zinc-900 dark:text-zinc-200">{item.name}</p>
+                                                <p className="text-xs text-zinc-500">₹{item.price}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-right">
+                                    <span className="text-sm font-bold">Total: ₹{order.totalAmount}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+              </div>
+              {/* --- END PURCHASED ITEMS SECTION --- */}
+
             </div>
           </div>
         </div>

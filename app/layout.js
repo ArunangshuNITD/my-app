@@ -17,7 +17,7 @@ export default function RootLayout({ children }) {
       <body className="bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 antialiased">
         <Providers>
           <div className="flex min-h-screen flex-col">
-            <Navbar />
+            <Navbar/>
             <main className="flex-grow">
               {/* Just render children directly here */}
               {children}

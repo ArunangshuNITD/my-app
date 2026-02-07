@@ -5,9 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { FaChartPie, FaSignOutAlt, FaUser } from "react-icons/fa"; 
+import { useCart } from "@/context/CartContext"; // 1. Import Cart Context
 
 export default function AuthButton() {
   const { data: session } = useSession();
+  const { clearCart } = useCart(); // 2. Get clearCart function
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -73,8 +75,7 @@ export default function AuthButton() {
                 </Link>
               )}
               
-              {/* 2. My Profile Link (For EVERYONE) */}
-              {/* I removed the !isAdmin check here so you can see your profile too */}
+              {/* 2. My Profile Link */}
               <Link
                   href="/profile"
                   onClick={() => setIsOpen(false)}
@@ -87,7 +88,10 @@ export default function AuthButton() {
 
             <div className="py-1">
               <button
-                onClick={() => signOut()}
+                onClick={() => {
+                  clearCart(); // 3. Clear cart BEFORE signing out
+                  signOut();
+                }}
                 className="group flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-500 dark:hover:bg-red-900/20"
               >
                 <FaSignOutAlt className="mr-3 h-4 w-4 text-red-500" />

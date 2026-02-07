@@ -1,40 +1,42 @@
 "use server";
 
-import connectDB from "@/lib/db";
+import dbConnect from "@/lib/db";
 import Product from "@/models/Product";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth"; // Import 'auth' directly
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
-/**
- * CREATE PRODUCT
- * Assumes PDF is ALREADY uploaded via /api/upload-pdf
- */
 export async function createProduct(formData) {
-  const session = await auth();
+  // 1. Check Authentication
+  const session = await auth(); // v5 way
   if (!session?.user) {
-    throw new Error("Unauthorized");
+    throw new Error("Unauthorized: You must be logged in.");
   }
 
-  await connectDB();
+  await dbConnect();
 
+  // 2. Extract Data
+  const name = formData.get("name");
+  const description = formData.get("description");
+  const price = Number(formData.get("price"));
+  const stock = Number(formData.get("stock"));
+  const subjectsString = formData.get("subjects");
+  
+  // URLs from Cloudinary (or local upload)
   const pdfUrl = formData.get("pdfUrl");
-  if (!pdfUrl) {
-    throw new Error("PDF URL missing");
+  const coverImage = formData.get("coverImage");
+
+  if (!name || !price || !pdfUrl || !coverImage) {
+    throw new Error("Missing required fields");
   }
 
-  // Auto-generate cover image from PDF
-  const coverImage = pdfUrl.replace(".pdf", ".jpg");
-
+  // 3. Create Product
   await Product.create({
-    name: formData.get("name"),
-    description: formData.get("description"),
-    price: Number(formData.get("price")),
-    stock: Number(formData.get("stock")),
-    subjects:
-      formData
-        .get("subjects")
-        ?.split(",")
-        .map(s => s.trim()) || [],
+    name,
+    description,
+    price,
+    stock,
+    subjects: subjectsString ? subjectsString.split(",").map(s => s.trim()) : [],
     pdfUrl,
     coverImage,
     createdBy: session.user.email,
@@ -42,23 +44,5 @@ export async function createProduct(formData) {
 
   revalidatePath("/store");
   revalidatePath("/profile");
-}
-
-/**
- * BUY PRODUCT
- */
-export async function buyProduct(productId) {
-  await connectDB();
-
-  const product = await Product.findById(productId);
-
-  if (!product || product.stock <= 0) {
-    throw new Error("Out of stock");
-  }
-
-  product.stock -= 1;
-  await product.save();
-
-  revalidatePath("/store");
-  revalidatePath(`/store/${productId}`);
+  redirect("/store");
 }
