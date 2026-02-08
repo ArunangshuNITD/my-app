@@ -1,102 +1,149 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
-import { useCart } from "@/context/CartContext"; // Import Context
+import { useCart } from "@/context/CartContext";
 
 export default function ProductPage({ params }) {
   const { id } = use(params);
-  const { addToCart } = useCart(); // Get addToCart function
+  const { addToCart } = useCart();
 
   const [product, setProduct] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isAdded, setIsAdded] = useState(false); // Visual feedback state
+  
+  // Review States
+  const [reviewData, setReviewData] = useState({ user: "", rating: 5, comment: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-
-    fetch(`/api/products/${id}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.error || "Failed to fetch product");
-        }
-        return res.json();
-      })
-      .then((data) => setProduct(data))
-      .catch((err) => {
-        console.error("Fetch Error:", err);
-        setError(err.message);
-      })
-      .finally(() => setLoading(false));
+    fetchProduct();
   }, [id]);
 
-  const handleAddToCart = () => {
-    addToCart(product);
-    setIsAdded(true);
-    setTimeout(() => setIsAdded(false), 2000); // Reset button after 2s
+  const fetchProduct = () => {
+    fetch(`/api/products/${id}`)
+      .then((res) => res.json())
+      .then((data) => setProduct(data))
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   };
 
-  if (loading) return <div className="p-8 text-center">Loading product...</div>;
-  
-  if (error) return (
-    <div className="p-8 text-center text-red-500">
-      <h2 className="text-xl font-bold">Error</h2>
-      <p>{error}</p>
-    </div>
-  );
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/products/${id}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(reviewData),
+      });
+      if (res.ok) {
+        setReviewData({ user: "", rating: 5, comment: "" });
+        fetchProduct(); // Refresh data to show new review
+      }
+    } catch (err) {
+      alert("Failed to post review");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
+  if (loading) return <div className="p-8 text-center">Loading...</div>;
   if (!product) return <div className="p-8 text-center">Product not found.</div>;
 
   return (
-    <div className="p-8 grid md:grid-cols-2 gap-10 max-w-6xl mx-auto">
-      <img
-        src={product.coverImage}
-        alt={product.name}
-        className="w-full rounded-xl object-cover shadow-lg"
-      />
+    <div className="max-w-6xl mx-auto p-4 md:p-8">
+      {/* Existing Product Details Section */}
+      <div className="grid md:grid-cols-2 gap-10">
+        <img src={product.coverImage} alt={product.name} className="w-full rounded-xl shadow-lg" />
+        <div>
+          <h1 className="text-4xl font-bold mb-2">{product.name}</h1>
+          <p className="text-yellow-500 text-xl mb-4">
+            ★ {product.rating} <span className="text-gray-400 text-sm">({product.totalRatings} reviews)</span>
+          </p>
+          <p className="text-3xl font-bold mb-6">₹{product.price}</p>
+          <p className="text-gray-600 dark:text-gray-300 mb-8">{product.description}</p>
+          <button 
+            onClick={() => addToCart(product)}
+            className="bg-blue-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors"
+          >
+            Add to Cart
+          </button>
+        </div>
+      </div>
 
-      <div className="flex flex-col justify-center">
-        <h1 className="text-4xl font-bold mb-2">{product.name}</h1>
+      <hr className="my-12 border-gray-200 dark:border-gray-800" />
 
-        <p className="text-yellow-500 text-lg mb-4">
-          ⭐ {product.rating || "No ratings yet"}
-        </p>
-
-        <p className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-          ₹{product.price}
-        </p>
-
-        <div className="flex flex-wrap gap-2 mb-6">
-          {product.subjects?.map((s) => (
-            <span key={s} className="text-sm bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700">
-              #{s}
-            </span>
-          ))}
+      {/* Reviews Section */}
+      <div className="grid md:grid-cols-3 gap-12">
+        {/* Left: Review Form */}
+        <div className="md:col-span-1">
+          <h2 className="text-2xl font-bold mb-4">Leave a Review</h2>
+          <form onSubmit={handleReviewSubmit} className="space-y-4 bg-gray-50 dark:bg-gray-800 p-6 rounded-xl">
+            <div>
+              <label className="block text-sm font-medium mb-1">Your Name</label>
+              <input 
+                required
+                className="w-full p-2 rounded border dark:bg-gray-700 dark:border-gray-600"
+                value={reviewData.user}
+                onChange={(e) => setReviewData({...reviewData, user: e.target.value})}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Rating</label>
+              <select 
+                className="w-full p-2 rounded border dark:bg-gray-700 dark:border-gray-600"
+                value={reviewData.rating}
+                onChange={(e) => setReviewData({...reviewData, rating: e.target.value})}
+              >
+                {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{n} Stars</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Comment</label>
+              <textarea 
+                required
+                rows="4"
+                className="w-full p-2 rounded border dark:bg-gray-700 dark:border-gray-600"
+                value={reviewData.comment}
+                onChange={(e) => setReviewData({...reviewData, comment: e.target.value})}
+              />
+            </div>
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              className="w-full bg-black dark:bg-white dark:text-black text-white py-2 rounded font-bold hover:opacity-80"
+            >
+              {isSubmitting ? "Posting..." : "Post Review"}
+            </button>
+          </form>
         </div>
 
-        <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
-          {product.description}
-        </p>
-
-        <p className="mb-6">
-          Status:{" "}
-          <span className={`font-bold ${product.stock > 0 ? "text-green-600" : "text-red-600"}`}>
-            {product.stock > 0 ? "In Stock" : "Out of Stock"}
-          </span>
-        </p>
-
-        <button
-          disabled={product.stock <= 0}
-          onClick={handleAddToCart}
-          className={`w-full md:w-auto px-8 py-4 rounded-xl font-bold text-lg transition-all transform active:scale-95 ${
-            isAdded 
-              ? "bg-green-600 text-white" 
-              : "bg-black dark:bg-white dark:text-black text-white hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-          }`}
-        >
-          {isAdded ? "Added to Cart! ✓" : "Add to Cart"}
-        </button>
+        {/* Right: Reviews List */}
+        <div className="md:col-span-2">
+          <h2 className="text-2xl font-bold mb-6">User Reviews</h2>
+          
+          {/* UPDATED LOGIC: Check if reviews exist (not undefined) AND have length */}
+          {(!product.reviews || product.reviews.length === 0) ? (
+            <p className="text-gray-500 italic">No reviews yet. Be the first to rate this product!</p>
+          ) : (
+            <div className="space-y-6">
+              {/* UPDATED LOGIC: Added optional chaining (?.) just to be safe */}
+              {product.reviews?.map((rev) => (
+                <div key={rev._id || Math.random()} className="border-b border-gray-100 dark:border-gray-800 pb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-bold text-lg">{rev.user}</span>
+                    <span className="text-yellow-500">{"★".repeat(rev.rating)}{"☆".repeat(5-rev.rating)}</span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400">{rev.comment}</p>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : 'Just now'}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
