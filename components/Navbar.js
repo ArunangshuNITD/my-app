@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { FiSun, FiMoon ,FiShoppingCart} from "react-icons/fi";
+import { FiSun, FiMoon, FiShoppingCart, FiMenu, FiX } from "react-icons/fi"; // Added FiMenu, FiX for cleaner icons
 import AuthButton from "./Authbutton";
 import { useCart } from "@/context/CartContext";
 
@@ -48,6 +48,18 @@ export default function Navbar() {
     );
   };
 
+  // Helper component for Cart Icon to avoid code duplication
+  const CartIcon = () => (
+    <Link href="/cart" className="relative p-2 text-zinc-600 dark:text-lime-400 hover:text-indigo-600 transition-colors">
+      <FiShoppingCart size={22} />
+      {cart.length > 0 && (
+        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+          {cart.length}
+        </span>
+      )}
+    </Link>
+  );
+
   return (
     <nav className="sticky top-0 z-50 w-full transition-colors duration-300 border-b 
       border-zinc-200 bg-white/80 backdrop-blur-md 
@@ -75,56 +87,43 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* 2. Desktop Navigation */}
+        {/* 2. Desktop Navigation (Hidden on Mobile) */}
         <div className="hidden items-center gap-8 md:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.name}
-              href={link.href}
-              className="text-sm font-medium transition-colors 
-                text-zinc-600 hover:text-indigo-600 
-                dark:text-zinc-400 dark:hover:text-lime-400"
-            >
-              {link.name}
-            </Link>
-          ))}
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                className="text-sm font-medium transition-colors 
+                  text-zinc-600 hover:text-indigo-600 
+                  dark:text-zinc-400 dark:hover:text-lime-400"
+              >
+                {link.name}
+              </Link>
+            ))}
         </div>
 
-        {/* 3. Auth Buttons & Dark Mode (Desktop) */}
+        {/* 3. Auth Buttons & Dark Mode (Desktop Only) */}
         <div className="hidden items-center gap-4 md:flex">
-
-          {/* Cart Icon */}
-          <Link href="/cart" className="relative p-2 text-zinc-600 dark:text-lime-400 hover:text-indigo-600 transition-colors">
-            <FiShoppingCart size={22} />
-            {cart.length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                {cart.length}
-              </span>
-            )}
-          </Link>
-
+          <CartIcon />
           <ThemeToggle />
           <div className="h-6 w-px bg-zinc-200 dark:bg-lime-900/30"></div>
           <AuthButton />
         </div>
-        {/* 4. Mobile Menu Button */}
-        <div className="flex items-center gap-4 md:hidden">
+
+        {/* 4. Mobile Header Section (Visible on Phone) */}
+        <div className="flex items-center gap-3 md:hidden">
+          {/* ADDED: Cart Icon for Mobile */}
+          <CartIcon />
+          
           <ThemeToggle />
+          
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="rounded-md p-2 transition-colors
               text-zinc-600 hover:bg-zinc-100 
               dark:text-lime-400 dark:hover:bg-lime-950"
           >
-            {isOpen ? (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-              </svg>
-            )}
+            {isOpen ? <FiX size={24} /> : <FiMenu size={24} />}
           </button>
         </div>
       </div>
@@ -132,9 +131,9 @@ export default function Navbar() {
       {/* 5. Mobile Dropdown Menu */}
       {isOpen && (
         <div className="absolute left-0 top-full w-full border-b px-6 py-8 md:hidden 
-    animate-in slide-in-from-top-2 fade-in duration-300
-    border-zinc-200 bg-white/95 backdrop-blur-xl 
-    dark:border-lime-900/30 dark:bg-black/95">
+          animate-in slide-in-from-top-2 fade-in duration-300
+          border-zinc-200 bg-white/95 backdrop-blur-xl 
+          dark:border-lime-900/30 dark:bg-black/95">
 
           {/* Flex container to center everything */}
           <div className="flex flex-col items-center justify-center gap-6 text-center">
@@ -144,8 +143,8 @@ export default function Navbar() {
                 href={link.href}
                 onClick={() => setIsOpen(false)}
                 className="text-lg font-semibold transition-colors
-            text-zinc-700 hover:text-indigo-600 
-            dark:text-zinc-300 dark:hover:text-lime-400"
+                  text-zinc-700 hover:text-indigo-600 
+                  dark:text-zinc-300 dark:hover:text-lime-400"
               >
                 {link.name}
               </Link>
