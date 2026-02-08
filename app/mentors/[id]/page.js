@@ -236,7 +236,7 @@ export default async function MentorProfilePage({ params }) {
                     Rating
                   </span>
                   <span className="text-sm text-gray-500 dark:text-gray-400">
-                    4.9 (24 Reviews)
+                    {(mentor.averageRating ?? 0).toFixed(1)} ({mentor.totalReviews ?? 0} Reviews)
                   </span>
                 </div>
               </li>

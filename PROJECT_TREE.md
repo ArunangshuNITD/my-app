@@ -1,9 +1,9 @@
-﻿# MENTORCONNECT - PROJECT TREE
+```markdown
+# MENTORCONNECT — COMPLETE PROJECT TREE
 
 Repository root: e:/web dev/mentorconnect/my-app
 
-- .gitignore
-- .gitattributes
+## Top-level files
 - eslint.config.mjs
 - jsconfig.json
 - next.config.mjs
@@ -13,47 +13,54 @@ Repository root: e:/web dev/mentorconnect/my-app
 - postcss.config.mjs
 - README.md
 - TREE.md
+- PROJECT_TREE.md
 - tailwind.config.js
 
+## Public
 - public/
-  - window.svg
-  - vercel.svg
-  - next.svg
-  - globe.svg
-  - file.svg
-  - uploads/   (local dev uploads; prefer cloud storage in production)
+  - uploads/                (local dev uploads; prefer cloud storage in production)
 
+## Models
 - models/
-  - Mentor.js
-  - Contact.js
-  - Booking.js
   - Blog.js
+  - Booking.js
+  - Contact.js
+  - Mentor.js
+  - Order.js
+  - Product.js
 
+## Library utilities
 - lib/
-  - db.js
-  - cloudinary.js
-  - blogData.js
   - auth.js
+  - blogData.js
+  - cloudinary.js
+  - db.js
 
+## Context
+- context/
+  - CartContext.js
+
+## Components
 - components/
   - Authbutton.js
   - BookingManager.js
   - Chatbot.js
   - CommentNode.js
   - CountdownTimr.js
+  - DelayedRender.js
   - Footer.js
   - Navbar.js
   - Providers.js
   - StudentBookingList.js
+  - VideoCallInterface.js
 
+## App (Next.js App Router)
 - app/
   - globals.css
   - layout.js
   - loading.js
   - not-found.js
   - page.js
-  - icon.svg
-  - favicon.ico
   - providers.js
 
   - about/
@@ -68,6 +75,7 @@ Repository root: e:/web dev/mentorconnect/my-app
     - dashboard.js
     - form.js
     - getMentors.js
+    - productActions.js
 
   - admin/
     - verify/
@@ -77,18 +85,40 @@ Repository root: e:/web dev/mentorconnect/my-app
     - auth/
       - [...nextauth]/
         - route.js
+
     - blogs/
       - route.js
       - [id]/
         - route.js
-        - upvote/
-          - route.js
         - comment/
           - route.js
           - [commentId]/
             - route.js
+        - upvote/
+          - route.js
+
     - chat/
       - route.js
+
+    - orders/
+      - route.js
+
+    - products/
+      - route.js
+      - [id]/
+        - route.js
+        - reviews/
+          - route.js
+
+    - upload-image/
+      - route.js
+
+    - upload-pdf/
+      - route.js
+
+    - video/
+      - token/
+        - route.js
 
   - become-mentor/
     - page.js
@@ -97,6 +127,9 @@ Repository root: e:/web dev/mentorconnect/my-app
     - page.js
 
   - booking-error/
+    - page.js
+
+  - cart/
     - page.js
 
   - contact/
@@ -136,6 +169,13 @@ Repository root: e:/web dev/mentorconnect/my-app
 
   - profile/
     - page.js
+    - sell-pdf/
+      - page.js
+
+  - store/
+    - page.js
+    - [id]/
+      - page.js
 
   - success-stories/
     - page.js
@@ -144,18 +184,11 @@ Repository root: e:/web dev/mentorconnect/my-app
     - [roomid]/
       - page.js
 
-## Extras / Notes
+## Notes
+- Server actions: files under `app/actions/*` (used as server actions).
+- API routes: under `app/api/*` (blogs, chat, auth, products, orders, uploads, video token).
+- Components: mix of client and server components — check for `use client` where applicable.
 
-- **Server actions:** live under `app/actions/*` (e.g., `bookingActions.js`, `getMentors.js`, `contact.js`, `form.js`).
-- **API routes:** see `app/api/*` for blogs, chat, and next-auth routes.
-- **Uploads:** `public/uploads/` used for local dev; consider cloud storage for production.
-- **Components:** mix of server and client components—check files for `use client` where needed.
+Generated on: 2026-02-08
 
-## Suggested next steps
-
-- **Add file links:** populate `PAGES_LOGIC.md` with links to key functions and lines.
-- **Run lint:** `npm run lint` to surface style/type issues.
-- **Export:** generate JSON/YAML representation for tooling or CI.
-- **Already exported:** full tree also saved to `PROJECT_TREE.md`.
-
-Generated on: 2026-02-06
+``` 

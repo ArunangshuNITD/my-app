@@ -325,39 +325,12 @@ export default function BlogFeed() {
         return [...blogs].sort((a, b) => (b.upvotes?.length || 0) - (a.upvotes?.length || 0)).slice(0, 4);
     }, [blogs]);
 
-    // More realistic paper texture: layered gradients + subtle SVG noise data-URI
-    const svgNoise = encodeURIComponent(`
-        <svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'>
-            <filter id='n'>
-                <feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/>
-                <feColorMatrix type='saturate' values='0'/>
-                <feComponentTransfer>
-                    <feFuncA type='table' tableValues='0 0.08' />
-                </feComponentTransfer>
-            </filter>
-            <rect width='100%' height='100%' filter='url(#n)' opacity='0.08' fill='white'/>
-        </svg>
-    `);
-
-    const paperTexture = `url("data:image/svg+xml;utf8,${svgNoise}")`;
-
-    const paperBG = {
-        backgroundImage: `
-            linear-gradient(180deg, #fbfaf7 0%, #f7f3ee 45%, #f2eadf 100%),
-            ${paperTexture},
-            repeating-linear-gradient(0deg, rgba(0,0,0,0.02) 0 1px, rgba(255,255,255,0) 1px 6px),
-            radial-gradient( circle at 50% 0%, rgba(0,0,0,0.03), rgba(0,0,0,0) 30% )
-        `,
-        backgroundBlendMode: 'normal, multiply, overlay, multiply',
-        backgroundRepeat: 'no-repeat, repeat, repeat, no-repeat',
-        backgroundSize: '100% 100%, 400px 400px, 8px 8px, 120% 120%',
-        backgroundColor: '#fbfaf7'
-    };
+    // Using CSS class-based background (professional look) in globals.css
 
     // --- RENDER ---
 
     return (
-        <div style={paperBG} className="min-h-screen text-zinc-900 dark:text-zinc-100 font-sans selection:bg-blue-100 dark:selection:bg-blue-900">
+        <div className="professional-bg min-h-screen text-zinc-900 dark:text-zinc-100 font-sans selection:bg-blue-100 dark:selection:bg-blue-900">
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 

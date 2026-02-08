@@ -11,7 +11,14 @@ const MentorSchema = new mongoose.Schema(
     linkedin: { type: String },
     image: { type: String },
     bio: { type: String },
-
+    averageRating: {
+      type: Number,
+      default: 0,
+    },
+    totalReviews: {
+      type: Number,
+      default: 0,
+    },
     // --- NEW: Booking & Session Configuration ---
     pricePerSession: {
       type: Number,
@@ -29,12 +36,12 @@ const MentorSchema = new mongoose.Schema(
       type: Boolean,
       default: true, // Master switch to pause bookings
     },
-    
+
     // --- Admin Control ---
-    applicationStatus: { 
-      type: String, 
-      enum: ["pending", "approved", "rejected"], 
-      default: "pending" 
+    applicationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending"
     },
 
     // OPTIONAL: Link to the main User account (Recommended for Auth)
