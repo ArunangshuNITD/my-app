@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { getMentorsList } from "../actions/getMentors";
 import {
   FaSearch,
@@ -13,6 +14,7 @@ import {
 } from "react-icons/fa";
 
 export default function MentorsPage() {
+  const router = useRouter();
   const [mentors, setMentors] = useState([]);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
@@ -167,6 +169,26 @@ export default function MentorsPage() {
           })}
         </div>
 
+        {/* Controls: sort + view */}
+        <div className="mb-8 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 text-sm text-zinc-600 dark:text-zinc-300">
+            <label className="font-medium">Sort:</label>
+            <select
+              className="px-3 py-2 rounded-md border border-zinc-200 bg-white text-sm shadow-sm"
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === 'popular') setMentors((m)=>[...m].sort((a,b)=> (b.rating||4.5)-(a.rating||4.5)));
+                if (v === 'new') setMentors((m)=>[...m].sort((a,b)=> (b.createdAt||'')>(a.createdAt||'')?1:-1));
+              }}
+            >
+              <option value="popular">Most Popular</option>
+              <option value="new">Newest</option>
+            </select>
+          </div>
+
+          <div className="text-sm text-zinc-500">Showing <span className="font-semibold text-zinc-900 dark:text-white">{filteredMentors.length}</span> mentors</div>
+        </div>
+
         {/* Mentors Content */}
         {mentorsByCategory.length === 0 ? (
           <div className="rounded-2xl border-2 border-dashed border-zinc-300/70 py-16 text-center dark:border-zinc-700/50">
@@ -225,17 +247,15 @@ export default function MentorsPage() {
                                 className="h-full w-full object-cover transition-transform group-hover:scale-105"
                               />
                             </div>
-                            <div className="min-w-0 flex-1">
-                              <h3 className={`truncate text-lg font-bold text-zinc-900 dark:text-white group-hover:${style.text} transition-colors`}>
-                                {mentor.name}
-                              </h3>
-                              <div className="mt-1 flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                                <FaUniversity className={`${style.icon}`} />
-                                <span className="truncate">
-                                  {mentor.organization || "Top Institute"}
-                                </span>
+                              <div className="min-w-0 flex-1">
+                                <h3 className={`truncate text-lg font-bold text-zinc-900 dark:text-white transition-colors`}>{mentor.name}</h3>
+                                <div className="mt-1 flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                                  <FaUniversity className={`${style.icon}`} />
+                                  <span className="truncate">{mentor.organization || "Top Institute"}</span>
+                                </div>
                               </div>
-                            </div>
+                              {/* Ribbon */}
+                              <div className={`absolute top-4 right-4 rounded-full px-3 py-1 text-xs font-semibold ${style.bgLight} ${style.text}`}>{group.category}</div>
                           </div>
 
                           {/* Bio */}
@@ -246,19 +266,20 @@ export default function MentorsPage() {
 
                           {/* Footer */}
                           <div className="mt-auto flex items-center justify-between border-t border-zinc-100/80 pt-4 dark:border-zinc-800/60">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               <FaStar className="text-yellow-400" />
-                              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">4.9</span>
-                              <span className="text-xs text-zinc-500 dark:text-zinc-400">(42)</span>
+                              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{mentor.rating || 4.9}</span>
+                              <span className="text-xs text-zinc-500 dark:text-zinc-400">({mentor.totalRatings || 0})</span>
                             </div>
 
                             <div className="flex items-center gap-3">
                               {mentor.linkedin && (
                                 <FaLinkedin className="h-5 w-5 text-zinc-400 hover:text-blue-600 transition-colors" />
                               )}
-                              <span className="rounded-full bg-emerald-100/80 px-3 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                                Free Intro
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => router.push(`/mentors/${mentor._id}`)} className="text-sm px-3 py-1 rounded-md border border-zinc-200 hover:bg-zinc-100">View</button>
+                                <button onClick={() => router.push(`/mentors/${mentor._id}#book`)} className="text-sm px-3 py-1 rounded-md bg-indigo-600 text-white hover:opacity-90">Book</button>
+                              </div>
                             </div>
                           </div>
                         </div>

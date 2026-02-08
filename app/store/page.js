@@ -10,10 +10,11 @@ export default function StorePage() {
 
   // Filter & Sort States
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSubjects, setSelectedSubjects] = useState([]); // now multi-select
-  const [priceRange, setPriceRange] = useState([0, 1000]);      // min-max price in ₹
-  const [minRating, setMinRating] = useState(0);               // 0 = any, 1-5
-  const [sortBy, setSortBy] = useState("newest");              // newest | price-low | price-high | rating | trending
+  const [selectedSubjects, setSelectedSubjects] = useState([]);
+  const [priceRange, setPriceRange] = useState([0, 2000]); // Increased max range
+  const [minRating, setMinRating] = useState(0);
+  const [sortBy, setSortBy] = useState("newest");
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/products")
@@ -32,13 +33,13 @@ export default function StorePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Dynamic subjects
+  // Dynamic subjects extraction
   const allSubjects = useMemo(() => {
     const tags = products.flatMap((p) => p.subjects || []);
     return [...new Set(tags)].sort();
   }, [products]);
 
-  // Filtered & Sorted Products
+  // Logic: Filter & Sort
   const filteredAndSortedProducts = useMemo(() => {
     let result = products.filter((product) => {
       const matchesSearch =
@@ -52,13 +53,11 @@ export default function StorePage() {
 
       const price = Number(product.price);
       const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
-
-      const matchesRating = product.rating >= minRating;
+      const matchesRating = (product.rating || 0) >= minRating;
 
       return matchesSearch && matchesSubjects && matchesPrice && matchesRating;
     });
 
-    // Sorting
     switch (sortBy) {
       case "price-low":
         result.sort((a, b) => Number(a.price) - Number(b.price));
@@ -69,241 +68,309 @@ export default function StorePage() {
       case "rating":
         result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
-      case "trending":
-        // Proxy: rating * totalRatings (higher engagement = trending)
-        result.sort((a, b) => (b.rating * (b.totalRatings || 1)) - (a.rating * (a.totalRatings || 1)));
-        break;
       case "newest":
       default:
-        // Assume you add createdAt field or sort by _id reverse
-        result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        // Fallback to ID if createdAt is missing, assuming newer IDs are higher
+        result.sort((a, b) => (b.createdAt || b._id) > (a.createdAt || a._id) ? 1 : -1);
         break;
     }
-
     return result;
   }, [products, searchQuery, selectedSubjects, priceRange, minRating, sortBy]);
+
+  // Helper to toggle subjects
+  const toggleSubject = (sub) => {
+    setSelectedSubjects((prev) =>
+      prev.includes(sub) ? prev.filter((s) => s !== sub) : [...prev, sub]
+    );
+  };
 
   const resetFilters = () => {
     setSearchQuery("");
     setSelectedSubjects([]);
-    setPriceRange([0, 1000]);
+    setPriceRange([0, 2000]);
     setMinRating(0);
     setSortBy("newest");
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-5">
-          <div className="w-14 h-14 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xl font-medium text-gray-700 dark:text-gray-300">Loading amazing notes...</p>
-        </div>
-      </div>
-    );
-  }
+  // Decorative inline styles for an old-library wooden vibe
+  const woodBG = {
+    backgroundImage: `
+      linear-gradient(180deg, #efe0c8 0%, #e6cfab 30%, #d4ad72 60%, #b98a4a 100%),
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.03) 0 2px, rgba(255,255,255,0.02) 2px 6px),
+      linear-gradient(180deg, rgba(0,0,0,0.03), rgba(255,255,255,0.02))
+    `,
+    backgroundSize: "100% 100%, 8px 100%, 100% 100%",
+    backgroundRepeat: "no-repeat, repeat, no-repeat",
+    backgroundBlendMode: "multiply, overlay, normal",
+    backgroundColor: "#efe0c8",
+  };
 
-  if (error) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center px-4">
-        <div className="max-w-lg w-full bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-10 text-center border border-red-100 dark:border-red-900/40">
-          <h2 className="text-3xl font-bold text-red-600 dark:text-red-400 mb-4">Oops!</h2>
-          <p className="text-lg text-gray-700 dark:text-gray-300 mb-8">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-lg transition shadow-md hover:shadow-lg"
-          >
-            Try Again
-          </button>
+  const frameStyle = {
+    border: "6px solid #5b3a21",
+    boxShadow: "inset 0 2px 0 rgba(255,255,255,0.06), 0 8px 30px rgba(11,7,4,0.25)",
+    background: "linear-gradient(180deg,#fff8ef, #f4e6cf)",
+  };
+
+  // --- Render Components ---
+
+  // Sidebar Filter Component
+  const FilterSidebar = () => (
+    <div className="space-y-8">
+      {/* Search */}
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Search Title..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-900 focus:ring-2 focus:ring-amber-600 outline-none transition-all shadow-sm"
+        />
+        <svg className="absolute left-3 top-3.5 h-5 w-5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
+
+      {/* Subjects */}
+      <div>
+        <h3 className="font-serif text-lg font-bold text-stone-800 dark:text-stone-200 mb-3">Categories</h3>
+        <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+          {allSubjects.map((sub) => (
+            <label key={sub} className="flex items-center gap-3 cursor-pointer group">
+              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                selectedSubjects.includes(sub) ? "bg-amber-600 border-amber-600" : "border-stone-400 bg-white dark:bg-stone-800"
+              }`}>
+                {selectedSubjects.includes(sub) && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+              </div>
+              <input 
+                type="checkbox" 
+                className="hidden" 
+                checked={selectedSubjects.includes(sub)} 
+                onChange={() => toggleSubject(sub)} 
+              />
+              <span className={`text-stone-600 dark:text-stone-400 group-hover:text-amber-700 dark:group-hover:text-amber-500 transition-colors`}>{sub}</span>
+            </label>
+          ))}
         </div>
       </div>
-    );
-  }
+
+      {/* Price Range */}
+      <div>
+        <h3 className="font-serif text-lg font-bold text-stone-800 dark:text-stone-200 mb-3">Price Range</h3>
+        <input
+          type="range"
+          min="0"
+          max="2000"
+          step="50"
+          value={priceRange[1]}
+          onChange={(e) => setPriceRange([0, Number(e.target.value)])}
+          className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-amber-600"
+        />
+        <div className="flex justify-between text-sm text-stone-500 mt-2 font-mono">
+          <span>₹0</span>
+          <span>₹{priceRange[1]}+</span>
+        </div>
+      </div>
+
+      {/* Rating */}
+      <div>
+        <h3 className="font-serif text-lg font-bold text-stone-800 dark:text-stone-200 mb-3">Customer Rating</h3>
+        <div className="space-y-1">
+          {[4, 3, 2, 1].map((star) => (
+            <button
+              key={star}
+              onClick={() => setMinRating(minRating === star ? 0 : star)}
+              className={`flex items-center gap-2 w-full px-2 py-1.5 rounded transition-colors ${
+                minRating === star ? "bg-amber-50 dark:bg-amber-900/20" : "hover:bg-stone-100 dark:hover:bg-stone-800"
+              }`}
+            >
+              <div className="flex text-amber-500">
+                {"★".repeat(star)}{"☆".repeat(5 - star)}
+              </div>
+              <span className="text-sm text-stone-600 dark:text-stone-400">& Up</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      <button onClick={resetFilters} className="w-full py-2 text-sm text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 underline">
+        Reset All Filters
+      </button>
+    </div>
+  );
+
+  // --- Main View ---
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-stone-950">
+      <div className="text-center animate-pulse">
+        <div className="text-4xl mb-4">📚</div>
+        <p className="font-serif text-xl text-stone-600 dark:text-stone-400">Opening the library...</p>
+      </div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-stone-950 p-4">
+      <div className="max-w-md w-full bg-white dark:bg-stone-900 p-8 rounded-xl shadow-xl text-center border-t-4 border-red-500">
+        <h2 className="text-2xl font-serif font-bold text-stone-800 dark:text-stone-100 mb-2">Shelf Error</h2>
+        <p className="text-stone-600 dark:text-stone-400 mb-6">{error}</p>
+        <button onClick={() => window.location.reload()} className="px-6 py-2 bg-stone-800 text-white rounded hover:bg-black transition">Reload Library</button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-950 dark:to-gray-900 py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white tracking-tight">
-            Explore Study Notes
+    <div className="min-h-screen text-stone-900 dark:text-stone-100 font-serif" style={woodBG}>
+      
+      {/* Top Navigation / Header */}
+      <header
+        className="sticky top-0 z-30 px-4 sm:px-8 py-4"
+        style={{ background: "#e8d2b0cc", borderBottom: "4px solid #6b3f24", boxShadow: "0 6px 20px rgba(11,7,4,0.18)" }}
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-amber-700 dark:text-amber-500 flex items-center gap-2">
+            <span>📖</span> The Study Nook
           </h1>
+          
+              <div className="flex items-center gap-4">
+            {/* Sort Dropdown (Visible on Desktop) */}
+            <div className="hidden sm:flex items-center gap-2">
+              <span className="text-sm text-stone-500 font-medium">Sort by:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="bg-transparent text-sm font-bold text-stone-800 dark:text-stone-200 cursor-pointer outline-none hover:text-amber-600"
+              >
+                <option value="newest">New Arrivals</option>
+                <option value="price-low">Price: Low to High</option>
+                <option value="price-high">Price: High to Low</option>
+                <option value="rating">Best Rated</option>
+              </select>
+            </div>
 
-          <div className="relative w-full lg:w-80">
-            <input
-              type="text"
-              placeholder="Search notes, subjects, authors..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-5 py-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none shadow-sm transition-all"
-            />
-            <svg className="absolute left-4 top-1/2 -translate-y-1/2 h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            {/* Mobile Filter Toggle */}
+            <button 
+              className="lg:hidden p-2 text-stone-600 dark:text-stone-300"
+              onClick={() => setIsMobileFilterOpen(!isMobileFilterOpen)}
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+            </button>
           </div>
         </div>
+      </header>
 
-        <div className="flex flex-col gap-8">
-          {/* Top Filters Bar */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <div className="flex-1 flex items-center gap-3">
-                <div className="hidden sm:block text-sm text-gray-600 dark:text-gray-300 font-medium">Subjects:</div>
-                <div className="flex gap-2 overflow-x-auto py-1">
-                  {allSubjects.map((sub) => {
-                    const active = selectedSubjects.includes(sub);
-                    return (
-                      <button
-                        key={sub}
-                        onClick={() =>
-                          setSelectedSubjects((prev) => (active ? prev.filter((s) => s !== sub) : [...prev, sub]))
-                        }
-                        className={`whitespace-nowrap px-3 py-1.5 rounded-full border text-sm transition ${
-                          active
-                            ? "bg-blue-600 text-white border-blue-600"
-                            : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600"
-                        }`}
-                      >
-                        {sub}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 flex gap-10 relative">
+        
+        {/* Sidebar (Desktop) */}
+        <aside className="hidden lg:block w-64 sticky top-24 h-fit shrink-0">
+          <FilterSidebar />
+        </aside>
 
-              <div className="flex items-center gap-3 ml-auto">
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
-                >
-                  <option value="newest">Newest</option>
-                  <option value="trending">Trending</option>
-                  <option value="rating">Top Rated</option>
-                  <option value="price-low">Price ⬆</option>
-                  <option value="price-high">Price ⬇</option>
-                </select>
-
-                <button
-                  onClick={resetFilters}
-                  className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
-                >
-                  Clear
+        {/* Sidebar (Mobile Slide-over) */}
+        {isMobileFilterOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsMobileFilterOpen(false)}></div>
+            <div className="absolute right-0 top-0 h-full w-80 bg-white dark:bg-stone-900 shadow-2xl p-6 overflow-y-auto">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-xl font-serif font-bold">Filters</h2>
+                <button onClick={() => setIsMobileFilterOpen(false)} className="text-stone-500">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
-            </div>
-
-            <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-4">
-              <div className="flex-1">
-                <label className="text-sm text-gray-600 dark:text-gray-300 mb-2 block">Price max: ₹{priceRange[1]}</label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1000"
-                  step="50"
-                  value={priceRange[1]}
-                  onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="text-sm text-gray-600 dark:text-gray-300">Min Rating:</div>
-                <div className="flex gap-1">
-                  {[0, 1, 2, 3, 4, 5].map((val) => (
-                    <button
-                      key={val}
-                      onClick={() => setMinRating(val)}
-                      className={`px-3 py-1 rounded-md text-sm transition ${
-                        minRating === val ? "bg-yellow-100 dark:bg-yellow-900/40" : "hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
-                    >
-                      {val === 0 ? "Any" : "★".repeat(val)}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <FilterSidebar />
             </div>
           </div>
+        )}
 
-          {/* Main Content */}
-          <main className="flex-1">
-            {filteredAndSortedProducts.length === 0 ? (
-              <div className="text-center py-24 bg-white/50 dark:bg-gray-800/50 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600">
-                <h2 className="text-3xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
-                  No notes found
-                </h2>
-                <p className="text-lg text-gray-500 dark:text-gray-400 mb-8">
-                  Try adjusting filters or search terms
-                </p>
-                <button
-                  onClick={resetFilters}
-                  className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition shadow-md"
+        {/* Product Grid */}
+        <main className="flex-1 min-h-[60vh]">
+                <div className="mb-6 flex items-center justify-between">
+            <p className="text-stone-500 dark:text-stone-400 text-sm">
+              Showing <span className="font-bold text-stone-900 dark:text-stone-100">{filteredAndSortedProducts.length}</span> results
+            </p>
+          </div>
+
+          {filteredAndSortedProducts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-96 border-2 border-dashed border-stone-200 dark:border-stone-800 rounded-xl bg-white/50 dark:bg-stone-900/50">
+              <span className="text-6xl mb-4 opacity-50">🧐</span>
+              <h3 className="text-xl font-serif font-bold text-stone-700 dark:text-stone-300 mb-2">No matches found</h3>
+              <p className="text-stone-500 mb-6">Try searching for a different author or topic.</p>
+              <button onClick={resetFilters} className="text-amber-600 font-bold hover:underline">Clear all filters</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8">
+              {filteredAndSortedProducts.map((product) => (
+                <Link
+                  href={`/store/${product._id}`}
+                  key={product._id}
+                  className="group relative flex flex-col rounded-lg transition-all duration-300 ease-out hover:-translate-y-1"
+                  style={{ ...frameStyle }}
                 >
-                  Reset Filters
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 xl:gap-8">
-                {filteredAndSortedProducts.map((product) => (
-                  <Link
-                    href={`/store/${product._id}`}
-                    key={product._id}
-                    className="group bg-white dark:bg-gray-800 rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 border border-gray-100 dark:border-gray-700 flex flex-col h-full transform hover:-translate-y-1"
-                  >
-                    <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800">
-                      <img
-                        src={product.coverImage}
-                        alt={product.name}
-                        className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out"
-                        loading="lazy"
-                      />
-                      {product.subjects?.length > 0 && (
-                        <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
-                          {product.subjects.slice(0, 2).map((sub, i) => (
-                            <span
-                              key={i}
-                              className="bg-black/70 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium"
-                            >
-                              {sub}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {product.rating > 4.5 && (
-                        <div className="absolute top-3 right-3 bg-yellow-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow">
-                          Trending
-                        </div>
+                  {/* Image Container with "Book Spine" effect */}
+                  <div className="relative aspect-[3/4] overflow-hidden rounded-t-lg bg-stone-200 dark:bg-stone-800">
+                    {/* Shadow overlay for spine effect */}
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-r from-black/20 to-transparent z-10"></div>
+                    
+                    <img
+                      src={product.coverImage}
+                      alt={product.name}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      loading="lazy"
+                    />
+
+                    {/* Badges */}
+                    <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+                       {product.rating >= 4.5 && (
+                        <span className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100 text-[10px] font-bold px-2 py-1 rounded shadow-sm border border-amber-200 dark:border-amber-700 uppercase tracking-wide">
+                          Best Seller
+                        </span>
                       )}
                     </div>
+                  </div>
 
-                    <div className="p-5 flex flex-col flex-grow">
-                      <h3 className="font-bold text-xl text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2 mb-3">
-                        {product.name}
-                      </h3>
+                  {/* Content */}
+                  <div className="p-5 flex flex-col flex-1 bg-transparent">
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-1 mb-2">
+                       {product.subjects?.slice(0, 2).map((sub, i) => (
+                         <span key={i} className="text-[10px] uppercase tracking-wider font-bold text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 px-2 py-0.5 rounded">
+                           {sub}
+                         </span>
+                       ))}
+                    </div>
 
-                      <div className="mt-auto space-y-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
-                            ₹{Number(product.price).toLocaleString("en-IN")}
-                          </p>
-                          {product.rating > 0 && (
-                            <div className="flex items-center gap-1 text-yellow-500 font-medium">
-                              <span className="text-xl">★</span>
-                              {product.rating.toFixed(1)}
-                              <span className="text-gray-500 dark:text-gray-400 text-sm">
-                                ({product.totalRatings || 0})
-                              </span>
-                            </div>
-                          )}
-                        </div>
+                    <h3 className="font-serif font-bold text-lg text-[#3b271b] leading-tight mb-2 group-hover:text-[#5b3a21] transition-colors">
+                      {product.name}
+                    </h3>
+                    
+                    <p className="text-sm text-stone-500 dark:text-stone-400 line-clamp-2 mb-4 flex-1">
+                      {product.description}
+                    </p>
+
+                        <div className="border-t border-stone-100 dark:border-stone-800 pt-3 flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-stone-400 uppercase font-semibold">Price</span>
+                        <span className="text-xl font-bold text-stone-800 dark:text-white">₹{product.price}</span>
                       </div>
+                      
+                      {product.rating > 0 && (
+                        <div className="flex flex-col items-end">
+                           <span className="text-xs text-stone-400 uppercase font-semibold">Rating</span>
+                           <div className="flex items-center gap-1 text-amber-500">
+                             <span className="font-bold">{product.rating}</span>
+                             <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                           </div>
+                        </div>
+                      )}
                     </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </main>
-        </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );
