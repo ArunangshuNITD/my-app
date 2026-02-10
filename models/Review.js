@@ -7,15 +7,23 @@ const ReviewSchema = new mongoose.Schema(
       ref: "Mentor",
       required: true,
     },
-    student: {
-      type: String, // <--- CHANGED FROM ObjectId TO String
-      // ref: "User", // Remove ref since we don't have a synced User collection for auth
+    // Change this to String (stores Auth ID)
+    studentId: {
+      type: String, 
       required: true,
     },
+    // Store Name & Image directly (Snapshot) since we can't populate
+    studentName: {
+      type: String,
+      required: true,
+    },
+    studentImage: {
+      type: String,
+    },
     booking: {
-      type: mongoose.Schema.Types.ObjectId, // Keep this as ObjectId (assuming Bookings are in DB)
+      type: mongoose.Schema.Types.ObjectId,
       ref: "Booking",
-      required: true, 
+      required: true,
     },
     rating: {
       type: Number,
@@ -32,7 +40,6 @@ const ReviewSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Prevent duplicate review per booking
 ReviewSchema.index({ booking: 1 }, { unique: true });
 
 export default mongoose.models.Review || mongoose.model("Review", ReviewSchema);

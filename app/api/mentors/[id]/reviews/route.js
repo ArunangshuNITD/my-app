@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Review from "@/models/Review";
 import Mentor from "@/models/Mentor";
-import Booking from "@/models/Booking";
-import User from "@/models/User"; // Import User model to resolve email to ID
+import Booking from "@/models/Booking"; 
+// REMOVED: import User ... (Not needed)
 import { auth } from "@/lib/auth";
 
 export async function POST(req, { params }) {
@@ -11,37 +11,33 @@ export async function POST(req, { params }) {
     await connectDB();
     const session = await auth();
     
+    // Check if user is logged in
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // FIX 1: Await params (Required for Next.js 15+)
+    // Next.js 15+ Params Fix
     const { id: mentorId } = await params;
     
     const body = await req.json();
     const { rating, comment, bookingId } = body;
 
-    // FIX 2: Resolve User ID using Email
-    // Since your ProfilePage uses email, we ensure we have the correct DB _id here
-    const studentUser = await User.findOne({ email: session.user.email });
-    
-    if (!studentUser) {
-      return NextResponse.json({ error: "User record not found" }, { status: 404 });
-    }
-
-    // FIX 3: Check for existing review to prevent duplicates
+    // 1. Check for Duplicate Review
     const existingReview = await Review.findOne({ booking: bookingId });
     if (existingReview) {
       return NextResponse.json({ error: "You have already reviewed this session" }, { status: 400 });
     }
 
-    // 4. Validate booking
-    // We use studentUser._id here to ensure we match the DB reference correctly
+    // 2. Validate Booking
+    // Since we don't have a User ID, we verify the booking belongs to this email
+    // Make sure your Booking model has a 'studentEmail' or matching field!
     const booking = await Booking.findOne({
       _id: bookingId,
       mentor: mentorId,
-      student: studentUser._id, 
-      status: "completed",
+      // Using email to verify ownership since we don't have a reliable User DB ID
+      // If your Booking model uses 'studentId' (string), use session.user.id instead
+      studentEmail: session.user.email, 
+      status: "completed", // Ensure session actually happened
     });
 
     if (!booking) {
@@ -51,24 +47,26 @@ export async function POST(req, { params }) {
       );
     }
 
-    // 5. Create review
+    // 3. Create Review
+    // We save the Name/Image directly because we can't .populate() later
     const review = await Review.create({
       mentor: mentorId,
-      student: studentUser._id,
+      studentId: session.user.id,     // Store Auth ID
+      studentName: session.user.name, // Store Name
+      studentImage: session.user.image,// Store Image
       booking: bookingId,
       rating,
       comment,
     });
 
-    // 6. Update mentor stats safely
+    // 4. Update Mentor Stats
     const mentor = await Mentor.findById(mentorId);
     
-    // Handle cases where fields might be undefined (new mentors)
     const currentTotal = mentor.totalReviews || 0;
     const currentAvg = mentor.averageRating || 0;
 
     const newTotal = currentTotal + 1;
-    // Math: ((Old Avg * Old Count) + New Rating) / New Count
+    // Calculate new average
     const newAverage = ((currentAvg * currentTotal) + rating) / newTotal;
 
     mentor.totalReviews = newTotal;
@@ -86,11 +84,11 @@ export async function POST(req, { params }) {
 
 export async function GET(req, { params }) {
   await connectDB();
-  // FIX: Await params here too
   const { id: mentorId } = await params;
 
+  // REMOVED: .populate("student") 
+  // We now just return the review, which contains studentName/studentImage inside it
   const reviews = await Review.find({ mentor: mentorId })
-    .populate("student", "name image")
     .sort({ createdAt: -1 });
 
   return NextResponse.json(reviews);
