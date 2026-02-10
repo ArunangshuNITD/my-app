@@ -8,7 +8,6 @@ import {
   FaStar,
   FaLinkedin,
   FaUniversity,
-  FaArrowRight,
   FaFilter,
   FaGraduationCap,
 } from "react-icons/fa";
@@ -19,6 +18,7 @@ export default function MentorsPage() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
     async function fetchData() {
       setIsLoading(true);
@@ -27,6 +27,8 @@ export default function MentorsPage() {
         setMentors(data || []);
       } catch (error) {
         console.error("Failed to fetch mentors:", error);
+      } finally {
+        setIsLoading(false);
       }
     }
     fetchData();
@@ -95,19 +97,21 @@ export default function MentorsPage() {
     const matchesSearch =
       (mentor.name || "").toLowerCase().includes(search.toLowerCase()) ||
       (mentor.bio || "").toLowerCase().includes(search.toLowerCase());
-    const matchesCategory = activeFilter === "All" || mentor.domain === activeFilter;
+    const matchesCategory =
+      activeFilter === "All" || mentor.domain === activeFilter;
     return matchesSearch && matchesCategory;
   });
 
-  // Group mentors by category (only when "All" is active)
-  const mentorsByCategory = activeFilter === "All"
-    ? categories
-        .map((cat) => ({
-          category: cat,
-          mentors: filteredMentors.filter((m) => m.domain === cat),
-        }))
-        .filter((group) => group.mentors.length > 0)
-    : [{ category: activeFilter, mentors: filteredMentors }];
+  // Group mentors by category
+  const mentorsByCategory =
+    activeFilter === "All"
+      ? categories
+          .map((cat) => ({
+            category: cat,
+            mentors: filteredMentors.filter((m) => m.domain === cat),
+          }))
+          .filter((group) => group.mentors.length > 0)
+      : [{ category: activeFilter, mentors: filteredMentors }];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white dark:from-black dark:to-zinc-950 px-4 py-12 sm:px-6 lg:px-8">
@@ -119,7 +123,8 @@ export default function MentorsPage() {
               Find Your Mentor
             </h1>
             <p className="mt-3 text-lg text-zinc-600 dark:text-zinc-400 max-w-2xl">
-              Connect with toppers and experts who’ve already walked the path you’re on.
+              Connect with toppers and experts who’ve already walked the path
+              you’re on.
             </p>
           </div>
 
@@ -127,7 +132,7 @@ export default function MentorsPage() {
             <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
             <input
               type="text"
-              placeholder="Search by name, subject, college, keywords..."
+              placeholder="Search by name, subject, college..."
               className="w-full rounded-full border border-zinc-300/70 bg-white/80 py-3.5 pl-12 pr-5 text-base shadow-sm backdrop-blur-sm transition-all placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-zinc-700/70 dark:bg-zinc-900/60 dark:text-white dark:placeholder:text-zinc-500"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -174,11 +179,23 @@ export default function MentorsPage() {
           <div className="flex items-center gap-3 text-sm text-zinc-600 dark:text-zinc-300">
             <label className="font-medium">Sort:</label>
             <select
-              className="px-3 py-2 rounded-md border border-zinc-200 bg-white text-sm shadow-sm"
+              className="px-3 py-2 rounded-md border border-zinc-200 bg-white text-sm shadow-sm dark:bg-zinc-900 dark:border-zinc-700"
               onChange={(e) => {
                 const v = e.target.value;
-                if (v === 'popular') setMentors((m)=>[...m].sort((a,b)=> (b.rating||4.5)-(a.rating||4.5)));
-                if (v === 'new') setMentors((m)=>[...m].sort((a,b)=> (b.createdAt||'')>(a.createdAt||'')?1:-1));
+                if (v === "popular") {
+                  setMentors((m) =>
+                    [...m].sort(
+                      (a, b) => (b.averageRating || 0) - (a.averageRating || 0)
+                    )
+                  );
+                }
+                if (v === "new") {
+                  setMentors((m) =>
+                    [...m].sort((a, b) =>
+                      (b.createdAt || "") > (a.createdAt || "") ? 1 : -1
+                    )
+                  );
+                }
               }}
             >
               <option value="popular">Most Popular</option>
@@ -186,7 +203,13 @@ export default function MentorsPage() {
             </select>
           </div>
 
-          <div className="text-sm text-zinc-500">Showing <span className="font-semibold text-zinc-900 dark:text-white">{filteredMentors.length}</span> mentors</div>
+          <div className="text-sm text-zinc-500">
+            Showing{" "}
+            <span className="font-semibold text-zinc-900 dark:text-white">
+              {filteredMentors.length}
+            </span>{" "}
+            mentors
+          </div>
         </div>
 
         {/* Mentors Content */}
@@ -194,9 +217,6 @@ export default function MentorsPage() {
           <div className="rounded-2xl border-2 border-dashed border-zinc-300/70 py-16 text-center dark:border-zinc-700/50">
             <p className="text-lg font-medium text-zinc-500 dark:text-zinc-400">
               No mentors found matching your search.
-            </p>
-            <p className="mt-2 text-sm text-zinc-400 dark:text-zinc-500">
-              Try changing the filter or search term.
             </p>
           </div>
         ) : (
@@ -219,71 +239,112 @@ export default function MentorsPage() {
                         </p>
                       </div>
                     </div>
-                    <Link
-                      href={`/mentors?domain=${group.category}`}
-                      className={`group flex items-center gap-2 text-sm font-semibold ${style.text} ${style.hoverText}`}
-                    >
-                      View all{" "}
-                      <FaArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                    </Link>
                   </div>
 
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {group.mentors.map((mentor) => (
-                      <Link
+                      // 1. Changed outer wrapper from Link to div
+                      <div
                         key={mentor._id}
-                        href={`/mentors/${mentor._id}`}
-                        className="group block h-full"
+                        className="group relative block h-full"
                       >
                         <div
-                          className={`relative flex h-full flex-col rounded-2xl border border-zinc-200/70 bg-white/70 p-6 shadow-sm transition-all duration-300 hover:-translate-y-2 ${style.borderHover} hover:shadow-2xl hover:shadow-[color-mix(in_oklch,${style.text},transparent_80%)] dark:border-zinc-800/60 dark:bg-zinc-900/50 dark:hover:shadow-[color-mix(in_oklch,${style.text},transparent_70%)] backdrop-blur-sm`}
+                          className={`relative flex h-full flex-col rounded-2xl border border-zinc-200/70 bg-white/70 shadow-sm transition-all duration-300 hover:-translate-y-2 ${style.borderHover} hover:shadow-2xl hover:shadow-[color-mix(in_oklch,${style.text},transparent_80%)] dark:border-zinc-800/60 dark:bg-zinc-900/50 backdrop-blur-sm`}
                         >
-                          {/* Avatar + Name */}
-                          <div className="mb-5 flex items-center gap-4">
-                            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full ring-2 ring-zinc-100/70 dark:ring-zinc-800/40">
-                              <img
-                                src={mentor.image || "/default-avatar.png"}
-                                alt={mentor.name}
-                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                              />
-                            </div>
+                          {/* 2. Main Profile Link - Stretched to cover the card, z-index 10 */}
+                          <Link
+                            href={`/mentors/${mentor._id}`}
+                            className="absolute inset-0 z-10 rounded-2xl"
+                          >
+                            <span className="sr-only">View Profile</span>
+                          </Link>
+
+                          {/* Card Content - z-index 0 so link covers it (making it clickable) */}
+                          <div className="p-6 flex flex-col h-full">
+                            {/* Avatar + Name */}
+                            <div className="mb-5 flex items-center gap-4">
+                              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full ring-2 ring-zinc-100/70 dark:ring-zinc-800/40">
+                                <img
+                                  src={mentor.image || "/default-avatar.png"}
+                                  alt={mentor.name}
+                                  className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                />
+                              </div>
                               <div className="min-w-0 flex-1">
-                                <h3 className={`truncate text-lg font-bold text-zinc-900 dark:text-white transition-colors`}>{mentor.name}</h3>
+                                <h3
+                                  className={`truncate text-lg font-bold text-zinc-900 dark:text-white transition-colors`}
+                                >
+                                  {mentor.name}
+                                </h3>
                                 <div className="mt-1 flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
                                   <FaUniversity className={`${style.icon}`} />
-                                  <span className="truncate">{mentor.organization || "Top Institute"}</span>
+                                  <span className="truncate">
+                                    {mentor.organization || "Top Institute"}
+                                  </span>
                                 </div>
                               </div>
                               {/* Ribbon */}
-                              <div className={`absolute top-4 right-4 rounded-full px-3 py-1 text-xs font-semibold ${style.bgLight} ${style.text}`}>{group.category}</div>
-                          </div>
-
-                          {/* Bio */}
-                          <p className="mb-6 line-clamp-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
-                            {mentor.bio ||
-                              "Passionate mentor helping students crack competitive exams with proven strategies."}
-                          </p>
-
-                          {/* Footer */}
-                          <div className="mt-auto flex items-center justify-between border-t border-zinc-100/80 pt-4 dark:border-zinc-800/60">
-                            <div className="flex items-center gap-2">
-                              <FaStar className="text-yellow-400" />
-                              <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{mentor.rating || 4.9}</span>
-                              <span className="text-xs text-zinc-500 dark:text-zinc-400">({mentor.totalRatings || 0})</span>
+                              <div
+                                className={`absolute top-4 right-4 rounded-full px-3 py-1 text-xs font-semibold ${style.bgLight} ${style.text}`}
+                              >
+                                {group.category}
+                              </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
-                              {mentor.linkedin && (
-                                <FaLinkedin className="h-5 w-5 text-zinc-400 hover:text-blue-600 transition-colors" />
-                              )}
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => router.push(`/mentors/${mentor._id}`)} className="text-sm px-3 py-1 rounded-md border border-zinc-200 hover:bg-zinc-100">View</button>
-                                <button onClick={() => router.push(`/mentors/${mentor._id}#book`)} className="text-sm px-3 py-1 rounded-md bg-indigo-600 text-white hover:opacity-90">Book</button>
+                            {/* Bio */}
+                            <p className="mb-6 line-clamp-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+                              {mentor.bio ||
+                                "Passionate mentor helping students crack competitive exams with proven strategies."}
+                            </p>
+
+                            {/* Footer: Ratings, Price & Actions */}
+                            <div className="mt-auto flex items-center justify-between border-t border-zinc-100/80 pt-4 dark:border-zinc-800/60">
+                              <div className="flex flex-col">
+                                {/* Rating Section */}
+                                <div className="flex items-center gap-1.5">
+                                  <FaStar className="text-yellow-400" />
+                                  <span className="text-sm font-bold text-zinc-900 dark:text-white">
+                                    {mentor.averageRating
+                                      ? mentor.averageRating.toFixed(1)
+                                      : "New"}
+                                  </span>
+                                  <span className="text-xs text-zinc-500">
+                                    ({mentor.totalReviews || 0})
+                                  </span>
+                                </div>
+                                {/* Price Section */}
+                                <div className="mt-1 text-xs font-medium text-zinc-500">
+                                  ₹{mentor.pricePerSession || "Free"} / session
+                                </div>
+                              </div>
+
+                              {/* 3. Interactive Buttons - z-index 20 to sit ABOVE the stretched link */}
+                              <div className="relative z-20 flex items-center gap-2">
+                                {/* LinkedIn Icon */}
+                                {mentor.linkedin && (
+                                  <a
+                                    href={mentor.linkedin}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mr-1 text-zinc-400 hover:text-blue-600 transition-colors p-1"
+                                  >
+                                    <FaLinkedin className="h-5 w-5" />
+                                  </a>
+                                )}
+
+                                <button
+                                  onClick={() =>
+                                    router.push(`/mentors/${mentor._id}#book`)
+                                  }
+                                  className="text-sm px-4 py-1.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-all shadow-md shadow-indigo-500/20"
+                                >
+                                  Book
+                                </button>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </Link>
+                      </div>
                     ))}
                   </div>
                 </section>

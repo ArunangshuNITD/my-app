@@ -1,8 +1,7 @@
-// app/mentors/[id]/page.js
-
 import { getMentorById } from "@/app/actions/getMentors";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
+import ReviewModal from "@/components/ReviewModal"; // <--- IMPORT THIS
 import {
   FaLinkedin,
   FaArrowLeft,
@@ -16,7 +15,7 @@ import {
 } from "react-icons/fa";
 
 export default async function MentorProfilePage({ params }) {
-  const { id } = await params;
+  const { id } = await params; // Await params in newer Next.js versions
   const mentor = await getMentorById(id);
   const session = await auth();
 
@@ -43,6 +42,7 @@ export default async function MentorProfilePage({ params }) {
       ring: "ring-indigo-700/10 dark:ring-indigo-400/30",
       icon: "text-indigo-600 dark:text-indigo-400",
       button: "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20",
+      color: "indigo"
     },
     NEET: {
       gradient: "from-emerald-600 via-emerald-700 to-emerald-800",
@@ -52,6 +52,7 @@ export default async function MentorProfilePage({ params }) {
       ring: "ring-emerald-700/10 dark:ring-emerald-400/30",
       icon: "text-emerald-600 dark:text-emerald-400",
       button: "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20",
+      color: "emerald"
     },
     GATE: {
       gradient: "from-purple-600 via-purple-700 to-purple-800",
@@ -61,6 +62,7 @@ export default async function MentorProfilePage({ params }) {
       ring: "ring-purple-700/10 dark:ring-purple-400/30",
       icon: "text-purple-600 dark:text-purple-400",
       button: "bg-purple-600 hover:bg-purple-700 shadow-purple-500/20",
+      color: "purple"
     },
     UPSC: {
       gradient: "from-amber-600 via-amber-700 to-amber-800",
@@ -70,6 +72,7 @@ export default async function MentorProfilePage({ params }) {
       ring: "ring-amber-700/10 dark:ring-amber-400/30",
       icon: "text-amber-600 dark:text-amber-400",
       button: "bg-amber-600 hover:bg-amber-700 shadow-amber-500/20",
+      color: "amber"
     },
     CAT: {
       gradient: "from-rose-600 via-rose-700 to-rose-800",
@@ -79,10 +82,11 @@ export default async function MentorProfilePage({ params }) {
       ring: "ring-rose-700/10 dark:ring-rose-400/30",
       icon: "text-rose-600 dark:text-rose-400",
       button: "bg-rose-600 hover:bg-rose-700 shadow-rose-500/20",
+      color: "rose"
     },
   };
 
-  const style = categoryStyles[mentor.domain] || categoryStyles.JEE; // fallback to JEE
+  const style = categoryStyles[mentor.domain] || categoryStyles.JEE;
 
   // --- ADMIN LOGIC ---
   const ADMIN_EMAIL = "arunangshud3@gmail.com";
@@ -267,6 +271,52 @@ export default async function MentorProfilePage({ params }) {
                 </span>
               )}
             </div>
+          </div>
+
+          {/* Reviews Section */}
+          <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-white/10 dark:bg-[#18181b]">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <FaStar className="text-yellow-500" />
+                Student Reviews
+              </h2>
+              {/* --- NEW REVIEW BUTTON COMPONENT --- */}
+              <ReviewModal mentorId={id} currentUser={session?.user} />
+            </div>
+
+            {(mentor.reviews?.length ?? 0) === 0 ? (
+              <p className="mt-4 text-sm text-gray-500 italic">No reviews yet. Be the first to review this mentor!</p>
+            ) : (
+              <div className="mt-6 space-y-6">
+                {mentor.reviews.map((review) => (
+                  <div key={review._id} className="border-b border-gray-100 pb-4 last:border-none dark:border-white/5">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={review.student?.image || "/default-avatar.png"}
+                        className="h-10 w-10 rounded-full object-cover"
+                        alt={review.student?.name || "Student"}
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{review.student?.name || "Student"}</p>
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((i) => (
+                            <FaStar
+                              key={i}
+                              className={i <= (review.rating ?? 0) ? "text-yellow-400" : "text-gray-300"}
+                              size={12}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {review.comment && (
+                      <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">“{review.comment}”</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

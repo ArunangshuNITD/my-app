@@ -10,6 +10,7 @@ import {
   FaTimesCircle,
   FaCheckDouble
 } from "react-icons/fa";
+import RateMentorButton from "@/components/RateMentorButton";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import CountdownTimer from "./CountdownTimr";
@@ -51,7 +52,7 @@ export default function StudentBookingList({ bookings = [] }) {
 
       if (!startDate || !endDate) return false;
 
-      const bufferBefore = 15 * 60 * 1000; 
+      const bufferBefore = 15 * 60 * 1000;
       return now >= (startDate.getTime() - bufferBefore) && now <= endDate.getTime();
     } catch (e) {
       return false;
@@ -112,8 +113,26 @@ export default function StudentBookingList({ bookings = [] }) {
               )}
 
               {booking.status === "completed" && (
-                <div className="flex items-center gap-2 px-3 py-1 bg-zinc-200 text-zinc-700 rounded-full text-xs font-bold uppercase tracking-tight">
-                  <FaCheckDouble /> Session Ended
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex items-center gap-2 px-3 py-1 bg-zinc-200 text-zinc-700 rounded-full text-xs font-bold uppercase tracking-tight">
+                    <FaCheckDouble /> Session Ended
+                  </div>
+
+                  {!booking.hasReview ? (
+                    <div className="mt-1 p-2 rounded-lg bg-yellow-50 border border-yellow-200 w-full">
+                      <p className="text-[11px] font-bold text-yellow-800 mb-1 uppercase tracking-wide">
+                        Rate Mentor
+                      </p>
+                      <RateMentorButton
+                        mentorId={booking.mentor?._id}
+                        bookingId={booking._id}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-green-600 font-semibold">
+                      ✓ You rated this mentor
+                    </p>
+                  )}
                 </div>
               )}
 

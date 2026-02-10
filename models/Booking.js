@@ -20,11 +20,11 @@ const BookingSchema = new mongoose.Schema(
       required: true,
     },
     timeSlot: {
-      type: String, // e.g., "10:00 AM - 11:00 AM"
+      type: String,
       required: true,
     },
     duration: {
-      type: Number, // in minutes
+      type: Number,
       required: true,
     },
     price: {
@@ -33,21 +33,31 @@ const BookingSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      // Added 'ongoing' to the enum
-      enum: ["pending", "confirmed", "rejected", "cancelled", "completed", "ongoing"],
-      default: "pending", 
+      enum: [
+        "pending",
+        "confirmed",
+        "rejected",
+        "cancelled",
+        "completed",
+        "ongoing",
+      ],
+      default: "pending",
     },
-    // EXISTING: For external links like Zoom/Meet
-    meetingLink: {
-      type: String, 
+    meetingLink: String,
+
+    roomId: {
+      type: String,
+      default: () => new mongoose.Types.ObjectId().toString(),
     },
-    // NEW: For internal Video Call feature
-    roomId: { 
-      type: String, 
-      default: () => new mongoose.Types.ObjectId().toString() // Auto-generates a unique room ID
-    }, 
+
+    // ✅ ADD THIS
+    hasReview: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
 
-export default mongoose.models.Booking || mongoose.model("Booking", BookingSchema);
+export default mongoose.models.Booking ||
+  mongoose.model("Booking", BookingSchema);

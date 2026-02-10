@@ -6,6 +6,7 @@ import Order from "@/models/Order";
 import { getIncomingBookings, getStudentBookings, getMentorBookingHistory } from "@/app/actions/bookingActions";
 import BookingManager from "@/components/BookingManager"; 
 import StudentBookingList from "@/components/StudentBookingList"; 
+import RateMentorButton from "@/components/RateMentorButton";
 import Link from "next/link";
 import { 
   FaEnvelope, 
@@ -57,6 +58,10 @@ export default async function ProfilePage() {
     ? historyIncomingBookings.filter(b => b.status === "confirmed" || b.status === "ongoing")
     : [];
 
+  const purchaseCount = myOrders.length || 0;
+  const activeCount = mentorActiveSessions.length || 0;
+  const learningCount = studentHistory.length || 0;
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black py-12 px-4 md:px-8">
       <div className="max-w-7xl mx-auto">
@@ -94,10 +99,30 @@ export default async function ProfilePage() {
                 <p className="text-zinc-500 flex items-center gap-2 mt-1">
                   <FaEnvelope className="text-zinc-400" /> {session.user.email}
                 </p>
-                <div className="mt-3 flex items-center gap-3">
-                  <Link href="/profile/sell-pdf" className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm transition-colors">
-                    <FaFilePdf /> Sell products
-                  </Link>
+
+                <div className="mt-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Link href="/profile/sell-pdf" className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-sm transition-colors shadow-sm">
+                      <FaFilePdf /> Sell
+                    </Link>
+                    {mentorProfile && (
+                      <Link href={`/mentors/${mentorProfile._id}/edit`} className="inline-flex items-center gap-2 bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50 px-3 py-1 rounded-full text-sm transition-colors">
+                        <FaUserEdit size={14} /> Edit
+                      </Link>
+                    )}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <div className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                      {purchaseCount} purchases
+                    </div>
+                    <div className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                      {activeCount} active sessions
+                    </div>
+                    <div className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                      {learningCount} learning
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

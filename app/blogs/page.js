@@ -330,7 +330,7 @@ export default function BlogFeed() {
     // --- RENDER ---
 
     return (
-        <div className="professional-bg min-h-screen text-zinc-900 dark:text-zinc-100 font-sans selection:bg-blue-100 dark:selection:bg-blue-900">
+        <div className="professional-bg page-blogs-bg min-h-screen text-zinc-900 dark:text-zinc-100 font-sans selection:bg-blue-100 dark:selection:bg-blue-900">
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 

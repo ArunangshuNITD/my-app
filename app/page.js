@@ -213,7 +213,7 @@ const SmartSearch = () => {
                     </div>
                     <div className="h-8 w-[1px] bg-zinc-200 dark:bg-zinc-800 hidden sm:block"></div>
                     <button className="w-full sm:w-auto px-6 py-3 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/30">
-                        Find Mentor
+                        Define your problem
                     </button>
                 </div>
             </div>

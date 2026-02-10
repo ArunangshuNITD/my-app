@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { uploadImage } from "@/lib/cloudinary"; // <--- NEW IMPORT
-
+import Review from "@/models/Review";
 // Ensure this matches your logged-in email exactly
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "arunangshud3@gmail.com";
 
@@ -42,20 +42,35 @@ export async function getMentorsList() {
 // 2. PUBLIC: GET SINGLE MENTOR
 // =========================================================
 export async function getMentorById(id) {
-  try {
-    await dbConnect();
-    const mentor = await Mentor.findById(id).lean();
-    if (!mentor) return null;
-    return {
-      ...mentor,
-      _id: mentor._id.toString(),
-      createdAt: mentor.createdAt?.toISOString(),
-      updatedAt: mentor.updatedAt?.toISOString(),
-    };
-  } catch (error) {
-    console.error("❌ Error fetching mentor details:", error);
-    return null;
-  }
+  await dbConnect();
+
+  const mentor = await Mentor.findById(id).lean();
+  if (!mentor) return null;
+
+  // Aggregate reviews
+  const reviewStats = await Review.aggregate([
+    { $match: { mentor: mentor._id } },
+    {
+      $group: {
+        _id: "$mentor",
+        averageRating: { $avg: "$rating" },
+        totalReviews: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const reviews = await Review.find({ mentor: mentor._id })
+    .populate("student", "name image")
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean();
+
+  return {
+    ...mentor,
+    averageRating: reviewStats[0]?.averageRating || 0,
+    totalReviews: reviewStats[0]?.totalReviews || 0,
+    reviews,
+  };
 }
 
 // =========================================================
@@ -69,7 +84,7 @@ export async function applyForMentorship(formData) {
   const email = session.user.email;
 
   await dbConnect();
-  
+
   const existingApp = await Mentor.findOne({ email });
   if (existingApp) {
     return { error: `You have already applied. Current Status: ${existingApp.applicationStatus}` };
@@ -220,7 +235,7 @@ export async function manualAddMentor(formData) {
     role: "Mentor",
     price: 500,
     isVerified: true,
-    applicationStatus: "approved" 
+    applicationStatus: "approved"
   };
 
   try {
@@ -230,10 +245,10 @@ export async function manualAddMentor(formData) {
       console.log(`🔄 Admin overwriting existing mentor: ${email}`);
       const imageToUse = uploadedImagePath || existingMentor.image;
       await Mentor.updateOne(
-        { email }, 
+        { email },
         { ...updateData, image: imageToUse }
       );
-      
+
       revalidatePath("/mentors");
       revalidatePath("/dashboard");
       return { success: true, message: "Mentor updated successfully" };
@@ -315,7 +330,7 @@ export async function updateMentor(formData) {
     console.error("❌ Update Error:", error);
     return { message: "Update failed" };
   }
-  
+
   revalidatePath(`/mentors/${id}`);
   revalidatePath("/mentors");
   redirect(`/mentors/${id}`);
