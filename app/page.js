@@ -1,3 +1,4 @@
+// File: app/page.js
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -6,6 +7,10 @@ import {
   motion, useScroll, useTransform, useSpring, useMotionValue, 
   useMotionTemplate, AnimatePresence, useInView 
 } from "framer-motion";
+
+// IMPORT THE NEW COMPONENT
+import SmartSearch from "@/components/SmartSearch"; 
+
 import { 
   FaGraduationCap, FaMedal, FaUniversity, FaCheckCircle, FaArrowRight, 
   FaQuestion, FaCog, FaLeaf, FaLandmark, FaDna, FaAtom, FaBalanceScale, 
@@ -190,44 +195,9 @@ function OrbitingQuestion({ text, radius, duration, reverse = false, delay = 0 }
 }
 
 // ==========================================
-// 3. UI COMPONENTS (Search, Stats, Ticker)
+// 3. UI COMPONENTS (Stats, Features)
 // ==========================================
-
-const SmartSearch = () => {
-    return (
-        <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="mt-8 w-full max-w-2xl"
-        >
-            <div className="relative group rounded-2xl p-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">
-                <div className="bg-white dark:bg-zinc-950 rounded-xl p-2 sm:p-3 flex flex-col sm:flex-row items-center gap-3 relative z-10">
-                    <div className="flex-1 flex items-center gap-3 w-full px-3">
-                        <FaSearch className="text-zinc-400" />
-                        <input 
-                            type="text" 
-                            placeholder="I want to crack NEET, JEE..." 
-                            className="w-full bg-transparent border-none outline-none text-zinc-900 dark:text-white placeholder:text-zinc-400 font-medium"
-                        />
-                    </div>
-                    <div className="h-8 w-[1px] bg-zinc-200 dark:bg-zinc-800 hidden sm:block"></div>
-                    <button className="w-full sm:w-auto px-6 py-3 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/30">
-                        Define your problem
-                    </button>
-                </div>
-            </div>
-            <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs font-medium text-zinc-500">
-                <span>Popular:</span>
-                {["IIT Bombay", "AIIMS Delhi", "UPSC Strategy", "Physics Doubts"].map(tag => (
-                    <span key={tag} className="cursor-pointer hover:text-indigo-500 underline decoration-dashed">
-                        {tag}
-                    </span>
-                ))}
-            </div>
-        </motion.div>
-    )
-}
+// NOTE: SmartSearch has been moved to its own file
 
 const FeatureCard = ({ title, desc, icon: Icon, color }) => {
     const x = useMotionValue(0);
@@ -430,7 +400,7 @@ export default function Home() {
            Don't just study hard. Study smart with 1-on-1 guidance from rankers who have walked the path.
          </motion.p>
 
-         {/* Search Component */}
+         {/* Search Component - IMPORTED */}
          <SmartSearch />
 
          {/* Trust Logos */}
@@ -473,7 +443,7 @@ export default function Home() {
             </div>
       </div>
 
-     
+      
 
       {/* 6. FEATURES GRID */}
       <section className="relative z-10 py-24 px-6 bg-zinc-50/50 dark:bg-black/50">

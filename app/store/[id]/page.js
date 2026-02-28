@@ -17,21 +17,23 @@ export default function ProductPage({ params }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hoverRating, setHoverRating] = useState(0); // For star hover effect
 
-  // Wooden theme styles
+  // Enhanced creative background
   const woodBG = {
     backgroundImage: `
-      linear-gradient(180deg, #efe0c8 0%, #e6cfab 30%, #d4ad72 60%, #b98a4a 100%),
-      repeating-linear-gradient(90deg, rgba(0,0,0,0.03) 0 2px, rgba(255,255,255,0.02) 2px 6px),
-      linear-gradient(180deg, rgba(0,0,0,0.03), rgba(255,255,255,0.02))
+      linear-gradient(135deg, #f8f5f0 0%, #f0e6d8 25%, #efe0c8 50%, #e6cfab 75%, #d4ad72 100%),
+      radial-gradient(circle at 20% 50%, rgba(255,200,100,0.1) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(180,100,50,0.1) 0%, transparent 50%)
     `,
-    backgroundSize: "100% 100%, 8px 100%, 100% 100%",
+    backgroundSize: "100% 100%, 100% 100%, 100% 100%",
+    backgroundAttachment: "fixed",
     backgroundColor: "#efe0c8",
   };
 
   const frameStyle = {
-    border: "6px solid #5b3a21",
-    boxShadow: "inset 0 2px 0 rgba(255,255,255,0.06), 0 8px 30px rgba(11,7,4,0.25)",
-    background: "linear-gradient(180deg,#fff8ef, #f4e6cf)",
+    border: "none",
+    boxShadow: "0 20px 60px rgba(11,7,4,0.2), 0 0 1px rgba(255,255,255,0.5) inset",
+    background: "linear-gradient(135deg,#fff8ef 0%, #f4e6cf 100%)",
+    backdropFilter: "blur(1px)",
   };
 
   useEffect(() => {
@@ -68,143 +70,235 @@ export default function ProductPage({ params }) {
     }
   };
 
-  if (loading) return <div className="p-8 text-center">Loading...</div>;
-  if (!product) return <div className="p-8 text-center">Product not found.</div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center" style={woodBG}>
+      <div className="text-center animate-pulse">
+        <div className="text-6xl mb-4">📚</div>
+        <p className="font-serif text-2xl text-amber-900">Loading your book...</p>
+      </div>
+    </div>
+  );
+  
+  if (!product) return (
+    <div className="min-h-screen flex items-center justify-center" style={woodBG}>
+      <div className="text-center">
+        <div className="text-6xl mb-4">🔍</div>
+        <p className="font-serif text-2xl text-amber-900">Product not found.</p>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-8 font-serif" style={woodBG}>
-      {/* Product Details (Framed) */}
-      <div style={frameStyle} className="p-6 rounded-lg">
-        <div className="grid md:grid-cols-2 gap-10">
-          <div className="rounded overflow-hidden shadow-inner bg-stone-100">
-            <img src={product.coverImage} alt={product.name} className="w-full h-full object-cover" />
-          </div>
-
-          <div>
-            <h1 className="text-4xl font-bold mb-2 text-[#3b271b]">{product.name}</h1>
+    <div className="min-h-screen font-serif" style={woodBG}>
+      <div className="max-w-7xl mx-auto px-4 md:px-8 py-12">
+        
+        {/* Product Details Card */}
+        <div style={frameStyle} className="p-8 md:p-12 rounded-2xl mb-16 overflow-hidden">
+          <div className="grid md:grid-cols-2 gap-12 items-start">
             
-            {/* Display Rating Stars */}
-            <div className="flex items-center gap-2 mb-4">
-              <div className="flex text-yellow-600 text-2xl">
-                {"★".repeat(Math.round(product.rating))}
-                <span className="text-gray-400">{"★".repeat(5 - Math.round(product.rating))}</span>
+            {/* Product Image */}
+            <div className="relative group">
+              <div className="absolute -inset-2 bg-gradient-to-r from-amber-400/30 to-orange-400/30 rounded-2xl blur-lg opacity-0 group-hover:opacity-100 transition duration-500"></div>
+              <div className="relative rounded-xl overflow-hidden shadow-2xl bg-stone-100 dark:bg-stone-800 aspect-[3/4]">
+                <img 
+                  src={product.coverImage} 
+                  alt={product.name} 
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                />
+                {/* Shine effect */}
+                <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
               </div>
-              <span className="text-gray-600 text-sm font-sans mt-1">({product.totalRatings} reviews)</span>
             </div>
 
-            <p className="text-3xl font-bold mb-6 text-[#3b271b]">₹{product.price}</p>
-            <p className="text-gray-700 mb-8">{product.description}</p>
-            <button 
-              onClick={() => addToCart(product)}
-              className="bg-[#5b3a21] text-white px-8 py-3 rounded-lg font-bold hover:bg-[#482713] transition-colors shadow-lg"
-            >
-              Add to Cart
-            </button>
+            {/* Product Info */}
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-4xl md:text-5xl font-bold mb-3 text-transparent bg-clip-text bg-gradient-to-r from-amber-900 via-orange-800 to-amber-800">
+                  {product.name}
+                </h1>
+                
+                {/* Rating with enhanced visuals */}
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex text-3xl gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <span key={i} className={`transition-transform ${i < Math.round(product.rating) ? 'text-amber-500 drop-shadow-lg' : 'text-stone-300'}`}>
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                  <div>
+                    <span className="text-2xl font-bold text-amber-900">{product.rating?.toFixed(1) || 'N/A'}</span>
+                    <p className="text-sm text-stone-600 dark:text-stone-400">({product.totalRatings || 0} reviews)</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price Card */}
+              <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 p-6 rounded-xl border-2 border-amber-200 dark:border-amber-800/50 shadow-md">
+                <p className="text-sm text-stone-600 dark:text-stone-400 font-semibold uppercase tracking-wide mb-2">Price</p>
+                <p className="text-4xl font-bold text-amber-900 dark:text-amber-400">₹{product.price}</p>
+              </div>
+
+              {/* Description */}
+              <p className="text-lg text-stone-700 dark:text-stone-300 leading-relaxed">
+                {product.description}
+              </p>
+
+              {/* Tags */}
+              {product.subjects && product.subjects.length > 0 && (
+                <div className="flex flex-wrap gap-2 pt-4">
+                  {product.subjects.map((subject, i) => (
+                    <span 
+                      key={i} 
+                      className="px-3 py-1 rounded-full text-sm font-semibold bg-gradient-to-r from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50"
+                    >
+                      #{subject}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Add to Cart Button */}
+              <button 
+                onClick={() => addToCart(product)}
+                className="w-full group relative overflow-hidden bg-gradient-to-r from-amber-700 to-orange-700 hover:from-amber-800 hover:to-orange-800 text-white px-8 py-4 rounded-lg font-bold text-lg transition-all transform hover:scale-105 shadow-lg hover:shadow-2xl active:scale-95"
+              >
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  <span>🛒</span> Add to Cart
+                </span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <hr className="my-12 border-stone-400/30" />
+        {/* Decorative Divider */}
+        <div className="flex items-center gap-4 my-16">
+          <div className="flex-1 h-1 bg-gradient-to-r from-transparent via-amber-400 to-transparent"></div>
+          <span className="text-3xl">📖</span>
+          <div className="flex-1 h-1 bg-gradient-to-r from-transparent via-orange-400 to-transparent"></div>
+        </div>
 
-      {/* Reviews Section */}
-      <div className="grid md:grid-cols-3 gap-12">
-        
-        {/* Review Form */}
-        <div className="md:col-span-1">
-          <h2 className="text-2xl font-bold mb-4 text-[#3b271b]">Write a Review</h2>
-          <form onSubmit={handleReviewSubmit} className="space-y-5 bg-white/80 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-[#d4ad72]">
+        {/* Reviews Section */}
+        <div className="grid md:grid-cols-3 gap-8">
+          
+          {/* Review Form */}
+          <div className="md:col-span-1">
+            <div style={frameStyle} className="p-8 rounded-2xl">
+              <h2 className="text-2xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-orange-900 to-red-900 flex items-center gap-2">
+                <span>✍️</span> Write a Review
+              </h2>
+              
+              <form onSubmit={handleReviewSubmit} className="space-y-4">
+                
+                {/* Star Rating Input */}
+                <div>
+                  <label className="block text-sm font-bold text-amber-900 dark:text-amber-300 mb-3 uppercase tracking-wide">Rating</label>
+                  <div className="flex gap-1 mb-2" onMouseLeave={() => setHoverRating(0)}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setReviewData({ ...reviewData, rating: star })}
+                        onMouseEnter={() => setHoverRating(star)}
+                        className="focus:outline-none transition-all transform hover:scale-125 active:scale-95"
+                      >
+                        <span 
+                          className={`text-4xl transition-all duration-200 drop-shadow-sm ${
+                            star <= (hoverRating || reviewData.rating) 
+                              ? "text-yellow-500 scale-110" 
+                              : "text-stone-300"
+                          }`}
+                        >
+                          ★
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-stone-600 dark:text-stone-400 font-sans italic">
+                    {hoverRating || reviewData.rating} out of 5 stars
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-amber-900 dark:text-amber-300 mb-2">Your Name</label>
+                  <input 
+                    required
+                    className="w-full px-4 py-2 rounded-lg border-2 border-amber-200 dark:border-amber-900/50 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
+                    placeholder="Your name here"
+                    value={reviewData.user}
+                    onChange={(e) => setReviewData({...reviewData, user: e.target.value})}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-amber-900 dark:text-amber-300 mb-2">Your Thoughts</label>
+                  <textarea 
+                    required
+                    rows="4"
+                    className="w-full px-4 py-2 rounded-lg border-2 border-amber-200 dark:border-amber-900/50 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all resize-none"
+                    placeholder="Share your thoughts about this book..."
+                    value={reviewData.comment}
+                    onChange={(e) => setReviewData({...reviewData, comment: e.target.value})}
+                  />
+                </div>
+                
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                  className="w-full group relative overflow-hidden bg-gradient-to-r from-orange-700 to-red-700 hover:from-orange-800 hover:to-red-800 disabled:from-stone-400 disabled:to-stone-500 text-white py-3 rounded-lg font-bold transition-all transform hover:scale-105 active:scale-95 shadow-lg"
+                >
+                  <span className="relative z-10">
+                    {isSubmitting ? "⏳ Posting..." : "📤 Post Review"}
+                  </span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Reviews List */}
+          <div className="md:col-span-2">
+            <h2 className="text-2xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-900 to-purple-900 flex items-center gap-2">
+              <span>💬</span> Reader Reviews
+            </h2>
             
-            {/* Interactive Star Rating Input */}
-            <div>
-              <label className="block text-sm font-bold text-[#5b3a21] mb-2 uppercase tracking-wide">Rating</label>
-              <div className="flex gap-1" onMouseLeave={() => setHoverRating(0)}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setReviewData({ ...reviewData, rating: star })}
-                    onMouseEnter={() => setHoverRating(star)}
-                    className="focus:outline-none transition-transform hover:scale-110 active:scale-95"
+            {(!product.reviews || product.reviews.length === 0) ? (
+              <div className="p-10 border-2 border-dashed border-amber-300 dark:border-amber-900/40 rounded-2xl text-center">
+                <div className="text-5xl mb-3 opacity-50">📝</div>
+                <p className="text-lg text-stone-600 dark:text-stone-400 font-medium">
+                  No reviews yet. Be the first to share your thoughts!
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {product.reviews?.map((rev, idx) => (
+                  <div 
+                    key={rev._id || idx} 
+                    className="group bg-white/80 dark:bg-stone-900/80 backdrop-blur-sm p-6 rounded-xl border-2 border-stone-200 dark:border-stone-800 hover:border-amber-300 dark:hover:border-amber-800 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1"
                   >
-                    <span 
-                      className={`text-3xl transition-colors duration-200 ${
-                        star <= (hoverRating || reviewData.rating) 
-                          ? "text-yellow-500 drop-shadow-sm" 
-                          : "text-gray-300"
-                      }`}
-                    >
-                      ★
-                    </span>
-                  </button>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h4 className="font-bold text-lg text-amber-900 dark:text-amber-400">{rev.user}</h4>
+                        <div className="flex gap-1 mt-1">
+                          {[...Array(5)].map((_, i) => (
+                            <span 
+                              key={i} 
+                              className={`text-lg transition-transform ${i < rev.rating ? 'text-yellow-500 drop-shadow' : 'text-stone-300'}`}
+                            >
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <span className="text-xs text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 px-3 py-1 rounded-full font-sans font-semibold">
+                        {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Just now'}
+                      </span>
+                    </div>
+                    <p className="text-stone-700 dark:text-stone-300 leading-relaxed font-sans">{rev.comment}</p>
+                  </div>
                 ))}
               </div>
-              <p className="text-xs text-gray-500 mt-1 font-sans">
-                {hoverRating || reviewData.rating} out of 5 stars
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-[#5b3a21] mb-1">Your Name</label>
-              <input 
-                required
-                className="w-full p-3 rounded-lg border border-stone-300 bg-white focus:ring-2 focus:ring-[#b98a4a] outline-none transition"
-                placeholder="John Doe"
-                value={reviewData.user}
-                onChange={(e) => setReviewData({...reviewData, user: e.target.value})}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-[#5b3a21] mb-1">Comment</label>
-              <textarea 
-                required
-                rows="4"
-                className="w-full p-3 rounded-lg border border-stone-300 bg-white focus:ring-2 focus:ring-[#b98a4a] outline-none transition"
-                placeholder="What did you think about this book?"
-                value={reviewData.comment}
-                onChange={(e) => setReviewData({...reviewData, comment: e.target.value})}
-              />
-            </div>
-            
-            <button 
-              type="submit" 
-              disabled={isSubmitting}
-              className="w-full bg-[#5b3a21] text-white py-3 rounded-lg font-bold hover:bg-[#3b271b] transition-colors disabled:opacity-50"
-            >
-              {isSubmitting ? "Posting..." : "Post Review"}
-            </button>
-          </form>
-        </div>
-
-        {/* Reviews List */}
-        <div className="md:col-span-2">
-          <h2 className="text-2xl font-bold mb-6 text-[#3b271b]">Reader Reviews</h2>
-          
-          {(!product.reviews || product.reviews.length === 0) ? (
-            <div className="p-8 border-2 border-dashed border-[#d4ad72] rounded-xl text-center text-[#5b3a21] opacity-70">
-              No reviews yet. Be the first to share your thoughts!
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {product.reviews?.map((rev) => (
-                <div key={rev._id || Math.random()} className="bg-white/60 p-5 rounded-xl border border-stone-200 shadow-sm">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                        <h4 className="font-bold text-lg text-[#3b271b]">{rev.user}</h4>
-                        <div className="flex text-yellow-500 text-sm">
-                            {"★".repeat(rev.rating)}
-                            <span className="text-gray-300">{"★".repeat(5-rev.rating)}</span>
-                        </div>
-                    </div>
-                    <span className="text-xs text-stone-500 bg-stone-100 px-2 py-1 rounded-full font-sans">
-                      {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString() : 'Just now'}
-                    </span>
-                  </div>
-                  <p className="text-stone-700 leading-relaxed font-sans">{rev.comment}</p>
-                </div>
-              ))}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

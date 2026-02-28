@@ -1,45 +1,60 @@
 import mongoose from "mongoose";
 
-const ReviewSchema = new mongoose.Schema(
+const reviewSchema = new mongoose.Schema(
   {
     mentor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Mentor",
       required: true,
     },
-    // Change this to String (stores Auth ID)
     studentId: {
       type: String, 
       required: true,
     },
-    // Store Name & Image directly (Snapshot) since we can't populate
-    studentName: {
-      type: String,
-      required: true,
-    },
-    studentImage: {
-      type: String,
-    },
+    studentName: { type: String },
+    studentImage: { type: String },
+    
+    // 👇 UPDATE THIS FIELD
     booking: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Booking",
-      required: true,
+      default: null, 
+      // ❌ REMOVE "unique: true" from here if it exists!
     },
+
     rating: {
       type: Number,
+      required: true,
       min: 1,
       max: 5,
-      required: true,
     },
     comment: {
       type: String,
-      trim: true,
-      maxlength: 500,
+      required: false, // Comment can be empty for star-only ratings
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
     },
   },
   { timestamps: true }
 );
 
-ReviewSchema.index({ booking: 1 }, { unique: true });
+// 👇 ADD THIS INDEX AT THE BOTTOM
+// This tells MongoDB: "Enforce uniqueness ONLY when booking has a real ObjectId value"
+reviewSchema.index(
+  { booking: 1 }, 
+  { 
+    unique: true, 
+    partialFilterExpression: { booking: { $type: "objectId" } } 
+  }
+);
 
-export default mongoose.models.Review || mongoose.model("Review", ReviewSchema);
+// Prevent a student from reviewing the SAME mentor multiple times generally (without booking)
+// Optional: Ensure one general review per student per mentor
+reviewSchema.index(
+  { mentor: 1, studentId: 1, booking: 1 }, 
+  { unique: true }
+);
+
+export default mongoose.models.Review || mongoose.model("Review", reviewSchema);

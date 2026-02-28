@@ -5,8 +5,9 @@ import Mentor from "@/models/Mentor";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { uploadImage } from "@/lib/cloudinary"; // <--- NEW IMPORT
+import { uploadImage } from "@/lib/cloudinary"; 
 import Review from "@/models/Review";
+
 // Ensure this matches your logged-in email exactly
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "arunangshud3@gmail.com";
 
@@ -59,17 +60,34 @@ export async function getMentorById(id) {
     },
   ]);
 
+  // Fetch reviews with population
   const reviews = await Review.find({ mentor: mentor._id })
-    .populate("student", "name image")
+    .populate({
+      path: "student",
+      select: "name image",
+      strictPopulate: false, 
+    })
     .sort({ createdAt: -1 })
     .limit(5)
     .lean();
 
+  // ✅ FIX: Manually serialize everything to plain objects
   return {
     ...mentor,
+    _id: mentor._id.toString(),
+    createdAt: mentor.createdAt?.toISOString(),
+    updatedAt: mentor.updatedAt?.toISOString(),
     averageRating: reviewStats[0]?.averageRating || 0,
     totalReviews: reviewStats[0]?.totalReviews || 0,
-    reviews,
+    reviews: reviews.map((r) => ({
+      ...r,
+      _id: r._id.toString(),
+      createdAt: r.createdAt?.toISOString(),
+      student: r.student ? { 
+        ...r.student, 
+        _id: r.student._id.toString() 
+      } : null,
+    })),
   };
 }
 
@@ -101,21 +119,18 @@ export async function applyForMentorship(formData) {
 
   if (!rawData.firstName) return { error: "First name is required" };
 
-  // --- CLOUDINARY UPLOAD START ---
+  // --- CLOUDINARY UPLOAD ---
   const imageFile = formData.get('profile-image');
   let imagePath = session.user.image || "/default-avatar.png";
 
   if (imageFile && imageFile.size > 0) {
     try {
-      console.log("📤 Uploading image to Cloudinary...");
       imagePath = await uploadImage(imageFile);
-      console.log("✅ Image uploaded:", imagePath);
     } catch (imgError) {
       console.error("⚠️ Image Upload Failed:", imgError);
       return { error: "Image upload failed. Please try again." };
     }
   }
-  // --- CLOUDINARY UPLOAD END ---
 
   try {
     await Mentor.create({
@@ -125,7 +140,7 @@ export async function applyForMentorship(formData) {
       bio: rawData.bio,
       organization: rawData.organization || "Independent",
       linkedin: rawData.linkedin,
-      image: imagePath, // Saves the Cloudinary URL
+      image: imagePath,
       role: "Mentor",
       price: 500,
       applicationStatus: "pending",
@@ -201,20 +216,15 @@ export async function manualAddMentor(formData) {
   await dbConnect();
 
   const email = formData.get("email");
-  const firstName = formData.get("first-name"); // Ensure these match your inputs
-  const lastName = formData.get("last-name");   // form name="name" or "first-name"? Double check.
-
-  // NOTE: In your AddMentorPage you used name="name" (single field).
-  // If your form sends "name", but this code expects "first-name", it will fail.
-  // Assuming you are fixing the form or splitting the name here:
+  const firstName = formData.get("first-name"); 
+  const lastName = formData.get("last-name");   
   const fullName = formData.get("name") || `${firstName} ${lastName}`;
 
   if (!email || !fullName) {
     return { error: "Email and Name are required." };
   }
 
-  // --- CLOUDINARY UPLOAD START ---
-  const imageFile = formData.get('image'); // Changed from 'profile-image' to 'image' to match your form
+  const imageFile = formData.get('image'); 
   let uploadedImagePath = null;
 
   if (imageFile && imageFile.size > 0) {
@@ -224,7 +234,6 @@ export async function manualAddMentor(formData) {
       console.error("⚠️ Image Upload Failed:", imgError);
     }
   }
-  // --- CLOUDINARY UPLOAD END ---
 
   const updateData = {
     name: fullName,
@@ -242,30 +251,16 @@ export async function manualAddMentor(formData) {
     const existingMentor = await Mentor.findOne({ email });
 
     if (existingMentor) {
-      console.log(`🔄 Admin overwriting existing mentor: ${email}`);
       const imageToUse = uploadedImagePath || existingMentor.image;
-      await Mentor.updateOne(
-        { email },
-        { ...updateData, image: imageToUse }
-      );
-
-      revalidatePath("/mentors");
-      revalidatePath("/dashboard");
-      return { success: true, message: "Mentor updated successfully" };
-
+      await Mentor.updateOne({ email }, { ...updateData, image: imageToUse });
     } else {
       const imageToUse = uploadedImagePath || "/default-avatar.png";
-      await Mentor.create({
-        ...updateData,
-        email: email,
-        image: imageToUse
-      });
-
-      revalidatePath("/mentors");
-      revalidatePath("/dashboard");
-      return { success: true, message: "Mentor added successfully" };
+      await Mentor.create({ ...updateData, email, image: imageToUse });
     }
 
+    revalidatePath("/mentors");
+    revalidatePath("/dashboard");
+    return { success: true, message: "Action successful" };
   } catch (error) {
     console.error("❌ Database Error:", error);
     return { error: "Failed to save mentor." };
@@ -273,7 +268,7 @@ export async function manualAddMentor(formData) {
 }
 
 // =========================================================
-// ✅ 7. SHARED ACTION: UPDATE MENTOR (WITH CLOUDINARY)
+// ✅ 7. SHARED ACTION: UPDATE MENTOR
 // =========================================================
 export async function updateMentor(formData) {
   const id = formData.get("id");
@@ -296,21 +291,17 @@ export async function updateMentor(formData) {
       throw new Error("Unauthorized");
     }
 
-    // --- CLOUDINARY UPLOAD START ---
-    const imageFile = formData.get('image'); // Matches <input name="image" type="file" />
+    const imageFile = formData.get('image'); 
     let newImagePath = null;
 
     if (imageFile && imageFile.size > 0) {
       try {
-        console.log("📤 Uploading updated image...");
         newImagePath = await uploadImage(imageFile);
       } catch (imgError) {
         console.error("⚠️ Update Image Upload Failed:", imgError);
       }
     }
-    // --- CLOUDINARY UPLOAD END ---
 
-    // 2. Prepare Data
     const updateData = {
       name: formData.get("name"),
       domain: formData.get("domain"),
@@ -319,7 +310,6 @@ export async function updateMentor(formData) {
       bio: formData.get("bio"),
     };
 
-    // 3. Only update image if a new one was uploaded
     if (newImagePath) {
       updateData.image = newImagePath;
     }

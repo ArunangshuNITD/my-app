@@ -1,12 +1,14 @@
+"use server";
+
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import dbConnect from "@/lib/db";
 import Mentor from "@/models/Mentor"; 
 import Order from "@/models/Order"; 
+import Review from "@/models/Review";
 import { getIncomingBookings, getStudentBookings, getMentorBookingHistory } from "@/app/actions/bookingActions";
 import BookingManager from "@/components/BookingManager"; 
-import StudentBookingList from "@/components/StudentBookingList"; 
-import RateMentorButton from "@/components/RateMentorButton";
+import StudentBookingList from "@/components/StudentBookingList"; // We will update this component below
 import Link from "next/link";
 import { 
   FaEnvelope, 
@@ -23,7 +25,9 @@ import {
   FaHistory,
   FaVideo,
   FaShoppingBag,
-  FaUsersCog
+  FaUsersCog,
+  FaStar,
+  FaCommentDots
 } from "react-icons/fa";
 
 export default async function ProfilePage() {
@@ -52,7 +56,13 @@ export default async function ProfilePage() {
     historyIncomingBookings = await getMentorBookingHistory(session.user.email);
   }
   
+  // Ensure this action returns the populated 'mentor' field for every booking
   studentHistory = await getStudentBookings(session.user.email);
+
+  // 4. Fetch My Written Reviews
+  const myReviews = await Review.find({ studentId: session.user.id })
+    .populate("mentor", "name image jobTitle")
+    .sort({ createdAt: -1 });
 
   const mentorActiveSessions = isApprovedMentor 
     ? historyIncomingBookings.filter(b => b.status === "confirmed" || b.status === "ongoing")
@@ -130,30 +140,30 @@ export default async function ProfilePage() {
             {/* Sessions Office (Full Width Tool) */}
             {isApprovedMentor && (
               <div>
-                 <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-zinc-900 dark:text-white">
-                   <FaCalendarCheck className="text-indigo-500" /> Sessions Office
-                 </h4>
-                 <div className="p-4 rounded-xl border border-stone-100 shadow-md bg-gradient-to-b from-white to-blue-50/30">
-                   <div className="flex items-center gap-3 mb-4">
-                     <div className="p-2 rounded-md bg-indigo-50 shadow-sm">
-                       <FaUsersCog className="text-indigo-600" />
-                     </div>
-                     <div>
-                       <div className="text-sm font-semibold text-zinc-900">Incoming Requests</div>
-                       <div className="text-xs text-zinc-500">Manage your schedule</div>
-                     </div>
-                   </div>
-                   <BookingManager 
-                     incomingBookings={pendingIncomingBookings} 
-                     historyBookings={historyIncomingBookings} 
-                   />
-                 </div>
+                  <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-zinc-900 dark:text-white">
+                    <FaCalendarCheck className="text-indigo-500" /> Sessions Office
+                  </h4>
+                  <div className="p-4 rounded-xl border border-stone-100 shadow-md bg-gradient-to-b from-white to-blue-50/30">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 rounded-md bg-indigo-50 shadow-sm">
+                        <FaUsersCog className="text-indigo-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-zinc-900">Incoming Requests</div>
+                        <div className="text-xs text-zinc-500">Manage your schedule</div>
+                      </div>
+                    </div>
+                    <BookingManager 
+                      incomingBookings={pendingIncomingBookings} 
+                      historyBookings={historyIncomingBookings} 
+                    />
+                  </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* --- GRID LAYOUT: SESSIONS (Left) vs PURCHASES (Right) --- */}
+        {/* --- GRID LAYOUT --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
           {/* LEFT COLUMN: Dashboard Logic (2/3 Width) */}
@@ -163,7 +173,7 @@ export default async function ProfilePage() {
               <>
                 <div>
                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
-                     <FaChalkboardTeacher className="text-purple-500" /> Mentor Status
+                      <FaChalkboardTeacher className="text-purple-500" /> Mentor Status
                   </h3>
                   <div className="p-6 rounded-xl border border-purple-100 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-blue-50/50">
                     <div className="flex items-start gap-4">
@@ -175,10 +185,10 @@ export default async function ProfilePage() {
                         <p className="text-sm text-purple-700/80 mb-3">Your mentor profile is live.</p>
                         <div className="flex flex-wrap gap-3">
                           <Link href={`/mentors/${mentorProfile._id}`} className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors">
-                              View Public Profile <FaExternalLinkAlt size={12} />
+                             View Public Profile <FaExternalLinkAlt size={12} />
                           </Link>
                           <Link href={`/mentors/${mentorProfile._id}/edit`} className="inline-flex items-center gap-2 bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50 px-4 py-2 rounded-lg font-medium text-sm transition-colors">
-                              Edit Profile <FaUserEdit size={14} />
+                             Edit Profile <FaUserEdit size={14} />
                           </Link>
                         </div>
                       </div>
@@ -191,7 +201,8 @@ export default async function ProfilePage() {
                     <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
                       <FaVideo className="text-rose-500" /> Your Teaching Schedule
                     </h3>
-                    <StudentBookingList bookings={mentorActiveSessions} />
+                    {/* Reusing List Component (pass readOnly if mentors shouldn't rate students) */}
+                    <StudentBookingList bookings={mentorActiveSessions} isMentorView={true} />
                   </div>
                 )}
 
@@ -226,9 +237,66 @@ export default async function ProfilePage() {
                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
                     <FaHistory className="text-zinc-500" /> My Applications
                   </h3>
+                  {/* THIS IS THE COMPONENT THAT NEEDS THE FIX */}
                   <StudentBookingList bookings={studentHistory} />
                 </div>
 
+                {/* --- MY REVIEWS SECTION --- */}
+                <div>
+                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                      <FaCommentDots className="text-yellow-500" /> My Reviews
+                   </h3>
+                   {myReviews.length === 0 ? (
+                      <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 text-center">
+                          <p className="text-zinc-500 italic text-sm">You haven't reviewed any mentors yet.</p>
+                      </div>
+                   ) : (
+                      <div className="grid gap-4">
+                         {myReviews.map((review) => (
+                            <div key={review._id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                               <div className="flex justify-between items-start">
+                                  <div className="flex items-center gap-3">
+                                      <img 
+                                          src={review.mentor?.image || "/default-avatar.png"} 
+                                          alt={review.mentor?.name} 
+                                          className="w-10 h-10 rounded-full object-cover"
+                                      />
+                                      <div>
+                                          <p className="font-bold text-sm text-zinc-900 dark:text-white">
+                                              {review.mentor?.name || "Unknown Mentor"}
+                                          </p>
+                                          <div className="flex items-center gap-1">
+                                              <span className="text-yellow-500 text-xs flex">
+                                                  {[...Array(5)].map((_, i) => (
+                                                      <FaStar key={i} className={i < review.rating ? "text-yellow-400" : "text-gray-300"} />
+                                                  ))}
+                                              </span>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  <span className="text-xs text-zinc-400">
+                                      {new Date(review.createdAt).toLocaleDateString()}
+                                  </span>
+                               </div>
+                               <p className="text-zinc-600 dark:text-zinc-300 text-sm mt-3 italic">
+                                  "{review.comment}"
+                               </p>
+                               <div className="mt-2 text-xs font-semibold flex items-center gap-1">
+                                    {review.booking ? (
+                                       <span className="text-green-600 flex items-center gap-1">
+                                           <FaCheckCircle size={10} /> Verified Session
+                                       </span>
+                                    ) : (
+                                       <span className="text-blue-500">General Review</span>
+                                    )}
+                               </div>
+                            </div>
+                         ))}
+                      </div>
+                   )}
+                </div>
+
+                {/* Become Mentor Section */}
                 <div>
                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-3 flex items-center gap-2">
                    <FaChalkboardTeacher className="text-zinc-500" /> Become a Mentor
@@ -265,9 +333,9 @@ export default async function ProfilePage() {
             )}
           </div>
 
-          {/* RIGHT COLUMN: Purchased Items (1/3 Width) */}
+          {/* RIGHT COLUMN: Purchased Items */}
           <div className="lg:col-span-1">
-             <div className="sticky top-6"> {/* Sticky for better UX */}
+             <div className="sticky top-6"> 
                 <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
                    <FaShoppingBag className="text-green-600" /> My Purchases
                 </h3>
@@ -279,14 +347,14 @@ export default async function ProfilePage() {
                 ) : (
                    <div className="space-y-4">
                       {myOrders.map((order) => (
-                         <div key={order._id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900 shadow-sm">
+                          <div key={order._id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900 shadow-sm">
                              <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-800">
-                                 <span className="text-xs font-bold text-zinc-400">#{order._id.toString().slice(-6).toUpperCase()}</span>
-                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                   order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-700'
-                                 }`}>
-                                   {order.status}
-                                 </span>
+                                  <span className="text-xs font-bold text-zinc-400">#{order._id.toString().slice(-6).toUpperCase()}</span>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                                    order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-700'
+                                  }`}>
+                                    {order.status}
+                                  </span>
                              </div>
 
                              <div className="space-y-3">
@@ -312,14 +380,13 @@ export default async function ProfilePage() {
                                  Total: ₹{Number(order.totalAmount).toLocaleString("en-IN")}
                                 </span>
                              </div>
-                         </div>
+                          </div>
                       ))}
                    </div>
                 )}
              </div>
           </div>
         </div>
-
       </div>
     </div>
   );

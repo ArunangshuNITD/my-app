@@ -15,7 +15,6 @@ function checkTimeStatus(bookingDate, timeSlot, durationInMinutes) {
     const now = new Date();
     
     // 1. Robust Date Parsing
-    // We construct the date manually to avoid timezone shifts (e.g. UTC vs IST differences)
     const bDate = new Date(bookingDate);
     const sessionStart = new Date();
     sessionStart.setFullYear(bDate.getFullYear());
@@ -54,13 +53,12 @@ function checkTimeStatus(bookingDate, timeSlot, durationInMinutes) {
     return "confirmed";
   } catch (error) {
     console.error("Error checking time status:", error);
-    // Default fallback to prevent crashing
     return "confirmed";
   }
 }
 
 // ---------------------------------------------------------
-// 1. HELPER: GET TAKEN SLOTS
+// 1. GET TAKEN SLOTS
 // ---------------------------------------------------------
 export async function getTakenSlots(mentorId, dateString) {
   await dbConnect();
@@ -76,7 +74,7 @@ export async function getTakenSlots(mentorId, dateString) {
 }
 
 // ---------------------------------------------------------
-// 2. CREATE A NEW BOOKING (Status = Pending)
+// 2. CREATE A NEW BOOKING
 // ---------------------------------------------------------
 export async function createBooking(formData) {
   const session = await auth();
@@ -129,22 +127,18 @@ export async function createBooking(formData) {
 }
 
 // ---------------------------------------------------------
-// 3. GET INCOMING REQUESTS (For Mentor Dashboard - PENDING ONLY)
+// 3. GET INCOMING REQUESTS (For Mentor Dashboard)
 // ---------------------------------------------------------
 export async function getIncomingBookings(mentorEmail) {
   await dbConnect();
   
-  // 1. Debug Log: Check if function runs
-  console.log(`[getIncomingBookings] Fetching for: ${mentorEmail}`);
-
   const mentor = await Mentor.findOne({ email: mentorEmail });
   
   if (!mentor) {
-    console.log("[getIncomingBookings] Mentor profile not found.");
     return [];
   }
 
-  // 2. Explicitly find pending bookings
+  // Explicitly find pending bookings
   const bookings = await Booking.find({
     mentorId: mentor._id,
     status: "pending", 
@@ -152,60 +146,52 @@ export async function getIncomingBookings(mentorEmail) {
     .sort({ date: 1 })
     .lean();
 
-  console.log(`[getIncomingBookings] Found ${bookings.length} pending bookings.`);
-
-  // 3. STRICT SERIALIZATION (Fixes the issue)
-  // Do not use (...b) spread operator, as it includes createdAt (Date) which breaks Client Components
+  // STRICT SERIALIZATION
   return bookings.map((b) => ({
     _id: b._id.toString(),
     mentorId: b.mentorId.toString(),
     studentName: b.studentName || "Student",
     studentEmail: b.studentEmail,
-    date: b.date.toISOString(), // Convert Date to String
+    date: b.date.toISOString(),
     timeSlot: b.timeSlot,
     status: b.status,
     price: b.price,
     message: b.message || "",
-    // Include meeting link if available for incoming requests too
     meetingLink: b.meetingLink || "", 
   }));
 }
 
 // ---------------------------------------------------------
-// 3.5. GET BOOKING HISTORY (Updated for Ongoing)
+// 4. GET BOOKING HISTORY (For Mentor)
 // ---------------------------------------------------------
 export async function getMentorBookingHistory(mentorEmail) {
   await dbConnect();
   const mentor = await Mentor.findOne({ email: mentorEmail });
   if (!mentor) return [];
 
-  // 1. Find Confirmed, Rejected, Completed, OR Ongoing
-  let bookings = await Booking.find({
+  // Find Confirmed, Rejected, Completed, OR Ongoing
+  const bookings = await Booking.find({
     mentorId: mentor._id,
     status: { $in: ["confirmed", "rejected", "completed", "ongoing"] },
   }).sort({ updatedAt: -1 });
 
-  // 2. AUTO-UPDATE STATUS
-  const updates = bookings.map(async (b) => {
-    // Only check active sessions (confirmed or ongoing)
+  // AUTO-UPDATE STATUS
+  // We use Promise.all to handle async saves in parallel
+  await Promise.all(bookings.map(async (b) => {
     if (b.status === "confirmed" || b.status === "ongoing") {
       const newStatus = checkTimeStatus(b.date, b.timeSlot, b.duration);
-      
-      // If status has changed (e.g. Confirmed -> Ongoing OR Ongoing -> Completed)
       if (newStatus !== b.status) {
         b.status = newStatus;
         await b.save();
       }
     }
-  });
-  
-  await Promise.all(updates);
+  }));
 
-  // 3. Map for UI
+  // Map for UI
   return bookings.map((b) => ({
     _id: b._id.toString(),
     mentorId: b.mentorId.toString(),
-    studentName: b.studentName,
+    studentName: b.studentName || "Student",
     status: b.status, 
     date: b.date.toISOString(),
     timeSlot: b.timeSlot,
@@ -215,7 +201,7 @@ export async function getMentorBookingHistory(mentorEmail) {
 }
 
 // ---------------------------------------------------------
-// 4. VERIFY BOOKING (Approve/Reject)
+// 5. VERIFY BOOKING (Approve/Reject)
 // ---------------------------------------------------------
 export async function verifyBooking(bookingId, newStatus) {
   const session = await auth();
@@ -227,11 +213,13 @@ export async function verifyBooking(bookingId, newStatus) {
     status: newStatus,
   });
 
-  revalidatePath("/profile");
+  // Revalidate the dashboard so the UI updates immediately
+  revalidatePath("/dashboard"); 
+  revalidatePath("/mentor/dashboard");
 }
 
 // ---------------------------------------------------------
-// 5. GET STUDENT'S BOOKINGS (Updated for Ongoing)
+// 6. GET STUDENT'S BOOKINGS (With Review Status)
 // ---------------------------------------------------------
 export async function getStudentBookings(studentEmail) {
   await dbConnect();
@@ -242,7 +230,7 @@ export async function getStudentBookings(studentEmail) {
   if (!bookings.length) return [];
 
   // 2. AUTO-UPDATE STATUS
-  const updates = bookings.map(async (b) => {
+  await Promise.all(bookings.map(async (b) => {
     if (b.status === "confirmed" || b.status === "ongoing") {
       const newStatus = checkTimeStatus(b.date, b.timeSlot, b.duration);
       if (newStatus !== b.status) {
@@ -250,23 +238,23 @@ export async function getStudentBookings(studentEmail) {
         await b.save();
       }
     }
-  });
-  
-  await Promise.all(updates);
+  }));
 
-  // 3. Convert to POJO
-  const bookingsPlain = bookings.map((b) => b.toObject());
+  // 3. Convert documents to plain objects for easier manipulation
+  // Note: We cannot use .lean() above because we needed to .save() inside the loop
+  const bookingsPlain = bookings.map(b => b.toObject());
 
-  // 4. Get unique mentor IDs to fetch names
+  // 4. Get unique mentor IDs to fetch names efficiently
   const mentorIds = [...new Set(bookingsPlain.map((b) => b.mentorId))];
   const mentors = await Mentor.find({ _id: { $in: mentorIds } }).select("name");
 
+  // Create a Lookup Map: { "mentorId": "Mentor Name" }
   const mentorMap = mentors.reduce((acc, m) => {
     acc[m._id.toString()] = m.name;
     return acc;
   }, {});
 
-  // 5. Format data for the frontend
+  // 5. Return Clean Data
   return bookingsPlain.map((b) => ({
     _id: b._id.toString(),
     mentorId: b.mentorId.toString(),
@@ -275,6 +263,8 @@ export async function getStudentBookings(studentEmail) {
     timeSlot: b.timeSlot,
     status: b.status, 
     price: b.price,
-    meetingLink: b.meetingLink || "", // Ensure this is sent to the client
+    meetingLink: b.meetingLink || "",
+    // ✅ CRITICAL ADDITION: Pass this to frontend to hide/show Review button
+    hasReview: b.hasReview || false, 
   }));
 }
