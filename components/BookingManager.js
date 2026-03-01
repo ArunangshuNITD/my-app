@@ -6,32 +6,27 @@ import {
   FaTimesCircle, 
   FaCheckDouble, 
   FaClock,
-  FaVideo // Added video icon
+  FaVideo 
 } from "react-icons/fa";
-import Link from "next/link"; // Added Link
+import Link from "next/link"; 
 import { verifyBooking } from "@/app/actions/bookingActions";
 
 export default function BookingManager({ incomingBookings = [], historyBookings = [] }) {
   const [activeTab, setActiveTab] = useState("incoming");
   const [loadingId, setLoadingId] = useState(null);
-  
-  // NEW: State to track current time for the "Join Now" button
   const [now, setNow] = useState(new Date());
 
-  // NEW: Update time every 30 seconds
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(timer);
   }, []);
 
-  // NEW: Same exact time-checking logic as the student component
   const isSessionActive = (booking) => {
     if (!booking || (booking.status !== "confirmed" && booking.status !== "ongoing")) return false;
     if (!booking.timeSlot || typeof booking.timeSlot !== "string") return false;
 
     try {
       const bDate = new Date(booking.date);
-      
       const yyyy = bDate.getFullYear();
       const mm = String(bDate.getMonth() + 1).padStart(2, '0');
       const dd = String(bDate.getDate()).padStart(2, '0');
@@ -65,7 +60,7 @@ export default function BookingManager({ incomingBookings = [], historyBookings 
 
       if (!endDate) return false;
 
-      const bufferBefore = 15 * 60 * 1000; // 15 mins before
+      const bufferBefore = 15 * 60 * 1000; 
       return now >= (startDate.getTime() - bufferBefore) && now <= endDate.getTime();
     } catch (e) {
       console.error("Error parsing session time:", e);
@@ -178,9 +173,10 @@ export default function BookingManager({ incomingBookings = [], historyBookings 
             </div>
           ) : (
             historyBookings.map((booking) => {
-              // NEW: Check if the mentor can join the room right now
               const canJoin = isSessionActive(booking);
-              const activeRoomId = (booking.roomId || booking._id).toString();
+              
+              // NEW: Bulletproof ID extraction
+              const activeRoomId = booking.roomId ? String(booking.roomId) : booking._id ? String(booking._id) : null;
 
               return (
                 <div
@@ -202,7 +198,6 @@ export default function BookingManager({ incomingBookings = [], historyBookings 
                   </div>
                   
                   <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                    {/* Status Badges */}
                     {booking.status === "confirmed" && !canJoin && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                         <FaCheckCircle size={10} /> Confirmed
@@ -219,7 +214,6 @@ export default function BookingManager({ incomingBookings = [], historyBookings 
                       </span>
                     )}
                     
-                    {/* Ongoing Status / Join Button */}
                     {(canJoin || booking.status === "ongoing") && (
                       <div className="flex items-center gap-3">
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 animate-pulse hidden sm:inline-flex">
@@ -227,13 +221,22 @@ export default function BookingManager({ incomingBookings = [], historyBookings 
                           Ongoing
                         </span>
                         
-                        {/* JOIN MEETING BUTTON */}
-                        <Link
-                          href={`/meeting/${activeRoomId}`}
-                          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-transform hover:scale-105"
-                        >
-                          <FaVideo size={12} /> Join Session
-                        </Link>
+                        {/* NEW: Safe Navigation Check */}
+                        {activeRoomId ? (
+                           <Link
+                             href={`/meeting/${activeRoomId}`}
+                             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md transition-transform hover:scale-105"
+                           >
+                             <FaVideo size={12} /> Join Session
+                           </Link>
+                        ) : (
+                           <button 
+                             disabled 
+                             className="flex items-center gap-2 bg-zinc-400 text-white px-4 py-2 rounded-lg font-bold text-xs shadow-md cursor-not-allowed"
+                           >
+                             <FaVideo size={12} /> Invalid Room ID
+                           </button>
+                        )}
                       </div>
                     )}
                   </div>

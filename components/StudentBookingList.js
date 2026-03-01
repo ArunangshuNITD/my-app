@@ -10,7 +10,8 @@ import {
   FaTimesCircle,
   FaCheckDouble,
   FaStar,
-  FaTimes
+  FaTimes,
+  FaSpinner // Added for loading state
 } from "react-icons/fa";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -51,7 +52,7 @@ export default function StudentBookingList({ bookings = [] }) {
 
       // Handle both "08:30 AM - 09:30 AM" AND "08:30 AM" formats
       const parts = booking.timeSlot.split(" - ");
-      const startTimeStr = parts[0].trim();
+      const startTimeStr = parts[0]?.trim();
       const endTimeStr = parts.length === 2 ? parts[1].trim() : null;
 
       const parseTime = (dateString, timeStr) => {
@@ -59,6 +60,7 @@ export default function StudentBookingList({ bookings = [] }) {
         const [time, modifier] = timeStr.trim().split(" ");
         const [hours, minutes] = time.split(":");
         let h = parseInt(hours, 10);
+        
         if (modifier === "PM" && h < 12) h += 12;
         if (modifier === "AM" && h === 12) h = 0;
         
@@ -132,7 +134,7 @@ export default function StudentBookingList({ bookings = [] }) {
     }
   };
 
-  if (bookings.length === 0) {
+  if (!bookings || bookings.length === 0) {
     return (
       <div className="p-8 text-center border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl bg-zinc-50 dark:bg-zinc-900/50">
         <p className="text-zinc-500 text-sm">No scheduled sessions found.</p>
@@ -262,7 +264,7 @@ export default function StudentBookingList({ bookings = [] }) {
         );
       })}
 
-      {/* --- RATING MODAL (Unchanged) --- */}
+      {/* --- RATING MODAL --- */}
       {selectedBooking && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in fade-in zoom-in duration-200">
@@ -273,6 +275,7 @@ export default function StudentBookingList({ bookings = [] }) {
               <button 
                 onClick={() => setSelectedBooking(null)} 
                 className="text-zinc-400 hover:text-red-500 transition-colors p-1"
+                aria-label="Close modal"
               >
                 <FaTimes size={18} />
               </button>
@@ -294,6 +297,7 @@ export default function StudentBookingList({ bookings = [] }) {
                     key={star}
                     onClick={() => setRating(star)}
                     type="button"
+                    aria-label={`Rate ${star} stars`}
                     className={`text-4xl transition-transform hover:scale-110 ${
                       star <= rating ? "text-yellow-400 drop-shadow-sm" : "text-gray-200 dark:text-gray-700"
                     }`}
@@ -320,7 +324,13 @@ export default function StudentBookingList({ bookings = [] }) {
                 disabled={submitting}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white py-3.5 rounded-xl font-bold text-sm transition-all flex justify-center items-center gap-2 shadow-lg hover:shadow-indigo-500/25"
               >
-                {submitting ? "Submitting..." : "Submit Review"}
+                {submitting ? (
+                  <>
+                    <FaSpinner className="animate-spin" /> Submitting...
+                  </>
+                ) : (
+                  "Submit Review"
+                )}
               </button>
             </div>
           </div>
