@@ -42,11 +42,17 @@ export default function StudentBookingList({ bookings = [] }) {
 
     try {
       const bDate = new Date(booking.date);
-      const dateStr = bDate.toISOString().split('T')[0];
-      const parts = booking.timeSlot.split(" - ");
-      if (parts.length !== 2) return false;
+      
+      // Use local date to avoid timezone shift issues (e.g., IST shifting to previous day in UTC)
+      const yyyy = bDate.getFullYear();
+      const mm = String(bDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(bDate.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}-${mm}-${dd}`; 
 
-      const [startTimeStr, endTimeStr] = parts;
+      // Handle both "08:30 AM - 09:30 AM" AND "08:30 AM" formats
+      const parts = booking.timeSlot.split(" - ");
+      const startTimeStr = parts[0].trim();
+      const endTimeStr = parts.length === 2 ? parts[1].trim() : null;
 
       const parseTime = (dateString, timeStr) => {
         if (!timeStr || typeof timeStr !== 'string') return null;
@@ -55,19 +61,31 @@ export default function StudentBookingList({ bookings = [] }) {
         let h = parseInt(hours, 10);
         if (modifier === "PM" && h < 12) h += 12;
         if (modifier === "AM" && h === 12) h = 0;
+        
+        // Construct standard ISO-like local date
         const combined = new Date(`${dateString}T${h.toString().padStart(2, '0')}:${minutes}:00`);
         return isNaN(combined.getTime()) ? null : combined;
       };
 
       const startDate = parseTime(dateStr, startTimeStr);
-      const endDate = parseTime(dateStr, endTimeStr);
+      if (!startDate) return false;
 
-      if (!startDate || !endDate) return false;
+      let endDate = null;
+      if (endTimeStr) {
+        endDate = parseTime(dateStr, endTimeStr);
+      } else {
+        // If no end time exists in the database, assume the session lasts 1 hour
+        endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+      }
 
-      // Opens the room 15 minutes before the actual start time
+      if (!endDate) return false;
+
+      // Allows joining 15 minutes before start time
       const bufferBefore = 15 * 60 * 1000; 
+      
       return now >= (startDate.getTime() - bufferBefore) && now <= endDate.getTime();
     } catch (e) {
+      console.error("Error parsing session time:", e);
       return false;
     }
   };

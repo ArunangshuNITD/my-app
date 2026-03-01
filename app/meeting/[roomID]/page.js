@@ -2,8 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
-// If you are using next-auth, you can use useSession to get the real logged-in user's name
-// import { useSession } from 'next-auth/react'; 
+import { useSession } from 'next-auth/react'; 
 
 export default function MeetingRoom({ params }) {
   const { roomID } = params;

@@ -31,11 +31,15 @@ export default function BookingManager({ incomingBookings = [], historyBookings 
 
     try {
       const bDate = new Date(booking.date);
-      const dateStr = bDate.toISOString().split('T')[0];
-      const parts = booking.timeSlot.split(" - ");
-      if (parts.length !== 2) return false;
+      
+      const yyyy = bDate.getFullYear();
+      const mm = String(bDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(bDate.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}-${mm}-${dd}`; 
 
-      const [startTimeStr, endTimeStr] = parts;
+      const parts = booking.timeSlot.split(" - ");
+      const startTimeStr = parts[0].trim();
+      const endTimeStr = parts.length === 2 ? parts[1].trim() : null;
 
       const parseTime = (dateString, timeStr) => {
         if (!timeStr || typeof timeStr !== 'string') return null;
@@ -44,18 +48,27 @@ export default function BookingManager({ incomingBookings = [], historyBookings 
         let h = parseInt(hours, 10);
         if (modifier === "PM" && h < 12) h += 12;
         if (modifier === "AM" && h === 12) h = 0;
+        
         const combined = new Date(`${dateString}T${h.toString().padStart(2, '0')}:${minutes}:00`);
         return isNaN(combined.getTime()) ? null : combined;
       };
 
       const startDate = parseTime(dateStr, startTimeStr);
-      const endDate = parseTime(dateStr, endTimeStr);
+      if (!startDate) return false;
 
-      if (!startDate || !endDate) return false;
+      let endDate = null;
+      if (endTimeStr) {
+        endDate = parseTime(dateStr, endTimeStr);
+      } else {
+        endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+      }
+
+      if (!endDate) return false;
 
       const bufferBefore = 15 * 60 * 1000; // 15 mins before
       return now >= (startDate.getTime() - bufferBefore) && now <= endDate.getTime();
     } catch (e) {
+      console.error("Error parsing session time:", e);
       return false;
     }
   };
