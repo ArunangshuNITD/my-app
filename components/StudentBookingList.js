@@ -29,6 +29,7 @@ export default function StudentBookingList({ bookings = [] }) {
   
   const router = useRouter();
 
+  // Update the current time every 30 seconds to trigger the "Join Now" button dynamically
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 30000);
     return () => clearInterval(timer);
@@ -63,7 +64,8 @@ export default function StudentBookingList({ bookings = [] }) {
 
       if (!startDate || !endDate) return false;
 
-      const bufferBefore = 15 * 60 * 1000; // 15 mins before
+      // Opens the room 15 minutes before the actual start time
+      const bufferBefore = 15 * 60 * 1000; 
       return now >= (startDate.getTime() - bufferBefore) && now <= endDate.getTime();
     } catch (e) {
       return false;
@@ -83,9 +85,6 @@ export default function StudentBookingList({ bookings = [] }) {
     setSubmitting(true);
 
     try {
-        // ✅ FIX: Robustly find the Mentor ID
-        // The booking object from 'bookingActions.js' usually has 'mentorId' as a direct string property.
-        // We check all possibilities just in case.
         const mentorId = selectedBooking.mentorId || selectedBooking.mentor?._id || selectedBooking.mentor;
 
         if (!mentorId) {
@@ -96,14 +95,14 @@ export default function StudentBookingList({ bookings = [] }) {
 
         const result = await submitSessionReview({
             bookingId: selectedBooking._id,
-            mentorId: mentorId, // Pass the resolved ID
+            mentorId: mentorId, 
             rating,
             comment
         });
 
         if (result.success) {
             setSelectedBooking(null);
-            router.refresh(); // Refresh to update the UI (hide the rate button)
+            router.refresh(); 
         } else {
             alert(result.error || "Failed to submit review");
         }
@@ -179,8 +178,6 @@ export default function StudentBookingList({ bookings = [] }) {
                     <FaCheckDouble /> Session Ended
                   </div>
 
-                  {/* Rating Logic */}
-                  {/* We check !booking.hasReview (from DB) AND !booking.isReviewed (optimistic UI update if any) */}
                   {!booking.hasReview && !booking.isReviewed ? (
                     <div className="mt-1 p-2 rounded-lg bg-yellow-50 border border-yellow-200 w-full text-center">
                       <p className="text-[10px] font-bold text-yellow-800 mb-1 uppercase tracking-wide">
@@ -211,7 +208,7 @@ export default function StudentBookingList({ bookings = [] }) {
                 </div>
               )}
 
-              {/* STATUS: ONGOING / CAN JOIN */}
+              {/* STATUS: ONGOING / CAN JOIN (Time is right!) */}
               {(canJoin || booking.status === "ongoing") && (
                 <div className="flex flex-col items-end animate-in zoom-in-95 duration-300">
                   <div className="flex items-center gap-2 mb-2">
@@ -232,11 +229,12 @@ export default function StudentBookingList({ bookings = [] }) {
                       <FaVideo /> Join Meeting
                     </a>
                   ) : (
+                    // This is the link to your internal ZegoCloud Video room
                     <Link
-                      href={`/video-call/${activeRoomId}`}
+                      href={`/meeting/${activeRoomId}`}
                       className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl font-bold shadow-xl transition-all hover:scale-105 active:scale-95 border-b-4 border-indigo-900 text-sm"
                     >
-                      <FaVideo /> Join Classroom
+                      <FaVideo /> Join Now
                     </Link>
                   )}
                 </div>
@@ -246,7 +244,7 @@ export default function StudentBookingList({ bookings = [] }) {
         );
       })}
 
-      {/* --- RATING MODAL --- */}
+      {/* --- RATING MODAL (Unchanged) --- */}
       {selectedBooking && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in fade-in zoom-in duration-200">
