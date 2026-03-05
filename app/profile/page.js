@@ -8,7 +8,7 @@ import Order from "@/models/Order";
 import Review from "@/models/Review";
 import { getIncomingBookings, getStudentBookings, getMentorBookingHistory } from "@/app/actions/bookingActions";
 import BookingManager from "@/components/BookingManager"; 
-import StudentBookingList from "@/components/StudentBookingList"; // We will update this component below
+import StudentBookingList from "@/components/StudentBookingList"; 
 import Link from "next/link";
 import { 
   FaEnvelope, 
@@ -115,6 +115,10 @@ export default async function ProfilePage() {
                     <Link href="/profile/sell-pdf" className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-sm transition-colors shadow-sm">
                       <FaFilePdf /> Sell
                     </Link>
+                    {/* Added Messages Link here to tie into Chatbot logic */}
+                    <Link href="/messages" className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-full text-sm transition-colors shadow-sm">
+                      <FaCommentDots /> Messages
+                    </Link>
                     {mentorProfile && (
                       <Link href={`/mentors/${mentorProfile._id}/edit`} className="inline-flex items-center gap-2 bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50 px-3 py-1 rounded-full text-sm transition-colors">
                         <FaUserEdit size={14} /> Edit
@@ -185,10 +189,10 @@ export default async function ProfilePage() {
                         <p className="text-sm text-purple-700/80 mb-3">Your mentor profile is live.</p>
                         <div className="flex flex-wrap gap-3">
                           <Link href={`/mentors/${mentorProfile._id}`} className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors">
-                             View Public Profile <FaExternalLinkAlt size={12} />
+                              View Public Profile <FaExternalLinkAlt size={12} />
                           </Link>
                           <Link href={`/mentors/${mentorProfile._id}/edit`} className="inline-flex items-center gap-2 bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50 px-4 py-2 rounded-lg font-medium text-sm transition-colors">
-                             Edit Profile <FaUserEdit size={14} />
+                              Edit Profile <FaUserEdit size={14} />
                           </Link>
                         </div>
                       </div>
@@ -201,7 +205,6 @@ export default async function ProfilePage() {
                     <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
                       <FaVideo className="text-rose-500" /> Your Teaching Schedule
                     </h3>
-                    {/* Reusing List Component (pass readOnly if mentors shouldn't rate students) */}
                     <StudentBookingList bookings={mentorActiveSessions} isMentorView={true} />
                   </div>
                 )}

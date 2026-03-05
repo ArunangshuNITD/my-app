@@ -1,7 +1,7 @@
 import { getMentorById } from "@/app/actions/getMentors";
 import { auth } from "@/lib/auth";
 import Link from "next/link";
-// Removed ReviewModal import as the button is no longer needed here
+import MessageMentorButton from "@/components/MessageMentorButton";
 import {
   FaLinkedin,
   FaArrowLeft,
@@ -188,6 +188,10 @@ export default async function MentorProfilePage({ params }) {
               >
                 <FaCalendarAlt className="text-lg" /> Book Session
               </Link>
+              
+              {/* Message Mentor Button Added Here */}
+              <MessageMentorButton mentorId={id} />
+              
             </div>
             {mentor.linkedin && (
               <div className="border-t border-gray-100 px-6 py-4 dark:border-white/5">
@@ -292,7 +296,6 @@ export default async function MentorProfilePage({ params }) {
                 <FaStar className="text-yellow-500" />
                 Student Reviews
               </h2>
-              {/* Review Button Removed Here */}
             </div>
 
             {(mentor.reviews?.length ?? 0) === 0 ? (
