@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { FaInbox } from "react-icons/fa";
 import { getUserConversations } from "@/app/actions/messageAction"; 
-import MessagesClientLayout from "@/components/MessagesClientlayout"; // <-- Import the new wrapper
+
+// FIXED IMPORT: Successfully pulling in your new client wrapper
+import MessagesClientLayout from "@/components/MessagesClientlayout";
 
 export default async function MessagesLayout({ children }) {
   const session = await auth();
@@ -12,9 +14,10 @@ export default async function MessagesLayout({ children }) {
     redirect("/");
   }
 
+  // Fetch the list of conversations for the sidebar
   const conversations = await getUserConversations(session.user.email);
 
-  // Extract the sidebar UI into a variable
+  // Extract the sidebar content so we can pass it to the Client Component
   const sidebarContent = (
     <>
       <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
@@ -32,7 +35,7 @@ export default async function MessagesLayout({ children }) {
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {conversations.map((chat) => (
               <Link 
-                href={`/profile/messages/${chat.id}`} // Check your route, ensure this matches where your chat is!
+                href={`/messages/${chat.id}`} 
                 key={chat.id}
                 className="flex items-center gap-3 p-4 hover:bg-white dark:hover:bg-zinc-800 transition-colors block cursor-pointer"
               >
