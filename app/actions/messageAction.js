@@ -7,8 +7,9 @@ import Message from "@/models/Message";
 import Mentor from "@/models/Mentor";
 import { revalidatePath } from "next/cache";
 
-// IMPORTANT: Make sure you added uploadChatFile to lib/cloudinary.js!
-import { uploadChatFile } from "@/lib/cloudinary"; 
+// Import BOTH upload helpers and rename them so they don't clash
+import { uploadChatFile as uploadToCloudinary } from "@/lib/cloudinary"; 
+import { uploadChatFile as uploadToSupabase } from "@/lib/supabase"; 
 
 export async function startConversation(mentorId) {
   const session = await auth();
@@ -114,17 +115,29 @@ export async function sendMessage(formData) {
     let fileType = null;
     let fileName = null;
 
-    // If a file was attached, upload it using your Cloudinary helper
+    // Route the file to the correct service based on its MIME type
     if (file && file.size > 0) {
       fileName = file.name;
       
-      if (file.type.startsWith("image/")) fileType = "image";
-      else if (file.type.startsWith("video/")) fileType = "video";
-      else if (file.type.startsWith("audio/")) fileType = "audio";
-      else if (file.type === "application/pdf") fileType = "pdf";
-      else fileType = "document";
-
-      fileUrl = await uploadChatFile(file);
+      if (file.type.startsWith("image/")) {
+        fileType = "image";
+        // Images go to Cloudinary
+        fileUrl = await uploadToCloudinary(file);
+      } else if (file.type.startsWith("video/")) {
+        fileType = "video";
+        // Cloudinary handles videos excellently too
+        fileUrl = await uploadToCloudinary(file);
+      } else {
+        // Everything else (PDFs, Audio, Docs) goes to Supabase
+        if (file.type.startsWith("audio/")) {
+          fileType = "audio";
+        } else if (file.type === "application/pdf") {
+          fileType = "pdf";
+        } else {
+          fileType = "document";
+        }
+        fileUrl = await uploadToSupabase(file);
+      }
     }
 
     if (!text.trim() && !fileUrl) {
@@ -157,7 +170,8 @@ export async function sendMessage(formData) {
     return JSON.parse(JSON.stringify(message));
   } catch (error) {
     console.error("Error sending message:", error);
-    throw new Error("Failed to send message.");
+    // Showing the REAL error on the screen so we aren't guessing anymore!
+    throw new Error(`Failed to send message: ${error.message}`);
   }
 }
 
@@ -180,6 +194,6 @@ export async function deleteMessage(messageId, conversationId) {
     return { success: true };
   } catch (error) {
     console.error("Error deleting message:", error);
-    throw new Error("Failed to delete message.");
+    throw new Error(`Failed to delete message: ${error.message}`);
   }
 }
