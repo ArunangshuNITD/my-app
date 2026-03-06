@@ -7,11 +7,12 @@ import Message from "@/models/Message";
 import Mentor from "@/models/Mentor";
 import { revalidatePath } from "next/cache";
 
-// 1. Start or find a conversation with a mentor
+// IMPORTANT: Make sure you added uploadChatFile to lib/cloudinary.js!
+import { uploadChatFile } from "@/lib/cloudinary"; 
+
 export async function startConversation(mentorId) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
-
   await dbConnect();
 
   const mentor = await Mentor.findById(mentorId);
@@ -20,17 +21,14 @@ export async function startConversation(mentorId) {
   const studentEmail = session.user.email;
   const mentorEmail = mentor.email;
 
-  // Prevent messaging yourself
   if (studentEmail === mentorEmail) {
     throw new Error("You cannot message yourself");
   }
 
-  // Check if conversation already exists
   let conversation = await Conversation.findOne({
     participants: { $all: [studentEmail, mentorEmail] },
   });
 
-  // If not, create a new one
   if (!conversation) {
     conversation = await Conversation.create({
       participants: [studentEmail, mentorEmail],
@@ -44,25 +42,20 @@ export async function startConversation(mentorId) {
   return conversation._id.toString();
 }
 
-// 2. Get all conversations for the inbox sidebar
 export async function getUserConversations() {
   const session = await auth();
   if (!session?.user) return [];
-
   await dbConnect();
+  
   const userEmail = session.user.email;
-
   const conversations = await Conversation.find({
     participants: userEmail,
   })
     .sort({ lastMessageAt: -1 })
     .lean();
 
-  // Map over the conversations to extract the partner's info
   const formattedConversations = conversations.map((conv) => {
-    // Find the index of the person who is NOT the current user
     const partnerIndex = conv.participants.findIndex((email) => email !== userEmail);
-
     return {
       id: conv._id.toString(),
       partnerName: conv.participantNames[partnerIndex] || "Unknown User",
@@ -72,15 +65,12 @@ export async function getUserConversations() {
     };
   });
 
-  // Because we manually mapped to simple strings/dates, we don't even need the JSON.parse trick here!
   return formattedConversations;
 }
 
-// 3. Get messages for a specific chat
 export async function getMessages(conversationId) {
   const session = await auth();
   if (!session?.user) return [];
-
   await dbConnect();
 
   const messages = await Message.find({ conversationId })
@@ -90,51 +80,78 @@ export async function getMessages(conversationId) {
   return JSON.parse(JSON.stringify(messages));
 }
 
-// 4. Send a new message
-export async function sendMessage(conversationId, text) {
+// 4. Send a new message (UPDATED TO HANDLE FILES via FormData)
+export async function sendMessage(formData) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
   await dbConnect();
 
+  // Extract data from FormData
+  const conversationId = formData.get("conversationId");
+  const text = formData.get("text") || "";
+  const file = formData.get("file"); 
+
+  let fileUrl = null;
+  let fileType = null;
+  let fileName = null;
+
+  // If a file was attached, upload it using your new Cloudinary helper
+  if (file && file.size > 0) {
+    fileName = file.name;
+    
+    if (file.type.startsWith("image/")) fileType = "image";
+    else if (file.type.startsWith("video/")) fileType = "video";
+    else if (file.type.startsWith("audio/")) fileType = "audio";
+    else if (file.type === "application/pdf") fileType = "pdf";
+    else fileType = "document";
+
+    fileUrl = await uploadChatFile(file);
+  }
+
+  if (!text.trim() && !fileUrl) {
+    throw new Error("Message cannot be empty");
+  }
+
   const message = await Message.create({
     conversationId,
     senderEmail: session.user.email,
     text,
+    fileUrl,
+    fileType,
+    fileName,
   });
 
+  // Update sidebar preview
+  let lastMessagePreview = text;
+  if (!text && fileType) {
+    lastMessagePreview = `Sent an attachment 📎`;
+  }
+
   await Conversation.findByIdAndUpdate(conversationId, {
-    lastMessage: text,
+    lastMessage: lastMessagePreview,
     lastMessageAt: new Date(),
   });
 
-  // UPDATED: Changed from /profile/messages to /messages
   revalidatePath(`/messages/${conversationId}`);
   revalidatePath("/messages");
   
   return JSON.parse(JSON.stringify(message));
 }
-// Add this to your messageAction.js file
 
 export async function deleteMessage(messageId, conversationId) {
   const session = await auth();
   if (!session?.user) throw new Error("Unauthorized");
 
   await dbConnect();
-
-  // Find the message first to verify ownership
   const message = await Message.findById(messageId);
   if (!message) throw new Error("Message not found");
 
-  // Security check: Only allow the sender to delete their own message
   if (message.senderEmail !== session.user.email) {
     throw new Error("You can only delete your own messages");
   }
 
-  // Delete it!
   await Message.findByIdAndDelete(messageId);
-
-  // Refresh the UI
   revalidatePath(`/messages/${conversationId}`);
   
   return { success: true };
