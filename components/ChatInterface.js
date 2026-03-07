@@ -3,21 +3,20 @@
 import { useState, useRef, useEffect } from "react";
 import { sendMessage, deleteMessage } from "@/app/actions/messageAction"; 
 import { FaPaperPlane, FaTrash, FaPaperclip, FaTimes, FaFileAlt, FaImage, FaVideo } from "react-icons/fa"; 
+import TemplateSelector from "./TemplateSelector"; // <-- NEW IMPORT
 
 export default function ChatInterface({ initialMessages, conversationId, currentUserEmail }) {
   const [messages, setMessages] = useState(initialMessages);
   const [text, setText] = useState("");
-  const [file, setFile] = useState(null); // State for the selected file
-  const [previewUrl, setPreviewUrl] = useState(null); // State for previewing the file
+  const [file, setFile] = useState(null); 
+  const [previewUrl, setPreviewUrl] = useState(null); 
   const [isSending, setIsSending] = useState(false);
   
-  // NEW: State to prevent hydration errors
   const [isMounted, setIsMounted] = useState(false);
   
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // NEW: Set isMounted to true once the component has loaded in the browser
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -32,11 +31,10 @@ export default function ChatInterface({ initialMessages, conversationId, current
     const selectedFile = e.target.files[0];
     if (selectedFile) {
       setFile(selectedFile);
-      // Create a local preview URL if it's an image or video
       if (selectedFile.type.startsWith("image/") || selectedFile.type.startsWith("video/")) {
         setPreviewUrl(URL.createObjectURL(selectedFile));
       } else {
-        setPreviewUrl("document"); // Just a flag to show a document icon
+        setPreviewUrl("document"); 
       }
     }
   };
@@ -48,14 +46,17 @@ export default function ChatInterface({ initialMessages, conversationId, current
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  // <-- NEW HANDLER FOR TEMPLATES -->
+  const handleTemplateSelect = (templateText) => {
+    setText(templateText);
+  };
+
   const handleSend = async (e) => {
     e.preventDefault();
-    // Prevent sending if both text and file are empty
     if ((!text.trim() && !file) || isSending) return;
 
     setIsSending(true);
 
-    // Create a FormData object to handle both text and files
     const formData = new FormData();
     formData.append("conversationId", conversationId);
     formData.append("text", text);
@@ -73,7 +74,7 @@ export default function ChatInterface({ initialMessages, conversationId, current
       setMessages((prev) => [...prev, newMessage]);
     } catch (error) {
       console.error("Failed to send message:", error);
-      setText(tempText); // Restore text if failed
+      setText(tempText); 
     } finally {
       setIsSending(false);
     }
@@ -89,7 +90,6 @@ export default function ChatInterface({ initialMessages, conversationId, current
     }
   };
 
-  // Helper function to render different file types in the chat
   const renderAttachment = (msg) => {
     if (!msg.fileUrl) return null;
 
@@ -100,7 +100,7 @@ export default function ChatInterface({ initialMessages, conversationId, current
         return <video src={msg.fileUrl} controls className="max-w-full rounded-lg mt-2 max-h-48" />;
       case "audio":
         return <audio src={msg.fileUrl} controls className="max-w-full mt-2" />;
-      default: // PDF or generic document
+      default: 
         return (
           <a 
             href={msg.fileUrl} 
@@ -131,16 +131,12 @@ export default function ChatInterface({ initialMessages, conversationId, current
                     : "bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border border-zinc-100 dark:border-zinc-700 rounded-tl-sm shadow-sm"
                 }`}
               >
-                {/* Render Text */}
                 {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
                 
-                {/* Render File Attachment */}
                 {renderAttachment(msg)}
                 
-                {/* Timestamp & Delete Button Wrapper */}
                 <div className={`flex items-center gap-2 mt-1 ${isMe ? "justify-end text-indigo-200" : "text-zinc-400"}`}>
                   
-                  {/* FIXED HYDRATION: Only render time if mounted */}
                   <span className="text-[10px]">
                     {isMounted ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
                   </span>
@@ -162,7 +158,7 @@ export default function ChatInterface({ initialMessages, conversationId, current
         <div ref={messagesEndRef} />
       </div>
 
-      {/* File Preview Area (Shows up above the input box when a file is selected) */}
+      {/* File Preview Area */}
       {previewUrl && (
         <div className="absolute bottom-[80px] left-4 bg-white dark:bg-zinc-800 p-2 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 flex items-center gap-3">
           {previewUrl === "document" ? (
@@ -180,9 +176,8 @@ export default function ChatInterface({ initialMessages, conversationId, current
       )}
 
       {/* Input Area */}
-      <form onSubmit={handleSend} className="p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex gap-3 items-center">
+      <form onSubmit={handleSend} className="p-4 bg-white dark:bg-zinc-900 border-t border-zinc-200 dark:border-zinc-800 flex gap-2 items-center">
         
-        {/* Hidden File Input */}
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -195,24 +190,27 @@ export default function ChatInterface({ initialMessages, conversationId, current
         <button 
           type="button" 
           onClick={() => fileInputRef.current.click()}
-          className="text-zinc-400 hover:text-indigo-600 transition-colors p-2"
+          className="text-zinc-400 hover:text-indigo-600 transition-colors p-2 flex items-center justify-center"
           title="Attach a file"
         >
           <FaPaperclip size={20} />
         </button>
+
+        {/* <-- NEW: TEMPLATE SELECTOR PLACED HERE --> */}
+        <TemplateSelector onSelectTemplate={handleTemplateSelect} />
 
         <input
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-full px-5 py-3 outline-none focus:ring-2 focus:ring-indigo-500"
+          className="flex-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-full px-5 py-3 outline-none focus:ring-2 focus:ring-indigo-500 ml-1"
         />
         
         <button
           type="submit"
           disabled={(!text.trim() && !file) || isSending}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white w-12 h-12 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white w-12 h-12 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ml-1"
         >
           {isSending ? (
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
