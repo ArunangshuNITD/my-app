@@ -1,14 +1,15 @@
-"use server";
-
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import dbConnect from "@/lib/db";
 import Mentor from "@/models/Mentor"; 
 import Order from "@/models/Order"; 
 import Review from "@/models/Review";
+import UserActivity from "@/models/UserActivity"; // NEW: Import Activity Model
+import { logUserActivity } from "@/app/actions/userActivity"; // NEW: Import Action
 import { getIncomingBookings, getStudentBookings, getMentorBookingHistory } from "@/app/actions/bookingActions";
 import BookingManager from "@/components/BookingManager"; 
 import StudentBookingList from "@/components/StudentBookingList"; 
+import ActivityHeatmap from "@/components/ActivityHeatmap"; // NEW: Import Component
 import Link from "next/link";
 import { 
   FaEnvelope, 
@@ -27,7 +28,8 @@ import {
   FaShoppingBag,
   FaUsersCog,
   FaStar,
-  FaCommentDots
+  FaCommentDots,
+  FaFire // NEW Icon for Activity
 } from "react-icons/fa";
 
 export default async function ProfilePage() {
@@ -38,15 +40,22 @@ export default async function ProfilePage() {
   }
 
   await dbConnect();
+
+  // 1. Log today's activity quietly in the background
+  await logUserActivity(session.user.email);
   
-  // 1. Fetch Mentor Profile
-  const mentorProfile = await Mentor.findOne({ email: session.user.email });
+  // 2. Fetch User Activity Data for the Heatmap
+  const userActivityData = await UserActivity.findOne({ userEmail: session.user.email }).lean();
+  const activeDatesArray = userActivityData?.activeDates || [];
+  
+  // 3. Fetch Mentor Profile
+  const mentorProfile = await Mentor.findOne({ email: session.user.email }).lean();
   const isApprovedMentor = mentorProfile?.applicationStatus === "approved";
 
-  // 2. Fetch Orders (Purchased Items)
-  const myOrders = await Order.find({ userEmail: session.user.email }).sort({ createdAt: -1 });
+  // 4. Fetch Orders (Purchased Items)
+  const myOrders = await Order.find({ userEmail: session.user.email }).sort({ createdAt: -1 }).lean();
 
-  // 3. Fetch Bookings
+  // 5. Fetch Bookings
   let pendingIncomingBookings = []; 
   let historyIncomingBookings = []; 
   let studentHistory = [];          
@@ -56,13 +65,13 @@ export default async function ProfilePage() {
     historyIncomingBookings = await getMentorBookingHistory(session.user.email);
   }
   
-  // Ensure this action returns the populated 'mentor' field for every booking
   studentHistory = await getStudentBookings(session.user.email);
 
-  // 4. Fetch My Written Reviews
+  // 6. Fetch My Written Reviews
   const myReviews = await Review.find({ studentId: session.user.id })
     .populate("mentor", "name image jobTitle")
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
 
   const mentorActiveSessions = isApprovedMentor 
     ? historyIncomingBookings.filter(b => b.status === "confirmed" || b.status === "ongoing")
@@ -76,7 +85,7 @@ export default async function ProfilePage() {
     <div className="min-h-screen bg-zinc-50 dark:bg-black py-12 px-4 md:px-8">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-white mb-2">My Profile</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-8">Personal dashboard — quick access to bookings, purchases, and mentor tools.</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-8">Personal dashboard — quick access to bookings, activity, and tools.</p>
 
         {/* --- HEADER SECTION (Profile & Tools) --- */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden mb-8">
@@ -115,7 +124,6 @@ export default async function ProfilePage() {
                     <Link href="/profile/sell-pdf" className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-sm transition-colors shadow-sm">
                       <FaFilePdf /> Sell
                     </Link>
-                    {/* Added Messages Link here to tie into Chatbot logic */}
                     <Link href="/messages" className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-full text-sm transition-colors shadow-sm">
                       <FaCommentDots /> Messages
                     </Link>
@@ -172,6 +180,15 @@ export default async function ProfilePage() {
           
           {/* LEFT COLUMN: Dashboard Logic (2/3 Width) */}
           <div className="lg:col-span-2 space-y-8">
+            
+            {/* --- ACTIVITY STREAK (Visible to Everyone) --- */}
+            <div>
+               <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                  <FaFire className="text-orange-500" /> Activity Streak
+               </h3>
+               <ActivityHeatmap activeDates={activeDatesArray} />
+            </div>
+
             {isApprovedMentor ? (
               /* MENTOR VIEW */
               <>
@@ -240,7 +257,6 @@ export default async function ProfilePage() {
                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
                     <FaHistory className="text-zinc-500" /> My Applications
                   </h3>
-                  {/* THIS IS THE COMPONENT THAT NEEDS THE FIX */}
                   <StudentBookingList bookings={studentHistory} />
                 </div>
 
