@@ -1,65 +1,52 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
-import { ZegoUIKitPrebuilt } from '@zegocloud/zego-uikit-prebuilt';
-// import { useSession } from 'next-auth/react'; 
+import { use } from 'react'; // 1. Import 'use' from React
+import { JitsiMeeting } from '@jitsi/react-sdk';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react'; 
 
 export default function MeetingRoom({ params }) {
-  // Unwrap params safely if using Next.js 14/15
-  const roomID = params?.roomId || params?.roomID || "default-room"; 
-  const containerRef = useRef(null);
+  const router = useRouter();
+  const { data: session } = useSession();
 
-  useEffect(() => {
-    if (!containerRef.current) return;
+  // 2. Unwrap the params Promise
+  const resolvedParams = use(params);
+  
+  // 3. Extract the ID safely from the resolved object
+  // (Make sure this matches your folder name, e.g., [roomId] or [id])
+  const roomID = resolvedParams?.roomId || resolvedParams?.id || resolvedParams?.roomID || "default-room"; 
 
-    const initMeeting = async () => {
-      // 1. Generate User info
-      const userID = Math.random().toString(36).substring(7);
-      const userName = `Guest_${userID}`;
-
-      // 2. Fetch your variables safely 
-      // Ensure App ID is parsed as an integer!
-      const appId = parseInt(process.env.NEXT_PUBLIC_ZEGO_APP_ID, 10);
-      const serverSecret = process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET;
-
-      if (!appId || !serverSecret) {
-        console.error("Missing ZegoCloud variables. Check your .env or Vercel settings.");
-        return;
-      }
-
-      // 3. Generate Kit Token internally (Using ForTest to sign with your own secret)
-      const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-        appId,
-        serverSecret,
-        roomID,
-        userID,
-        userName
-      );
-
-      // 4. Create and join the room
-      const zp = ZegoUIKitPrebuilt.create(kitToken);
-      
-      zp.joinRoom({
-        container: containerRef.current,
-        maxUsers: 2, // Perfect for 1-on-1 mentoring
-        scenario: {
-          mode: ZegoUIKitPrebuilt.OneONoneCall, 
-        },
-        sharedLinks: [
-          {
-            name: 'Personal link',
-            url: `${window.location.origin}/meeting/${roomID}`,
-          },
-        ],
-      });
-    };
-
-    initMeeting();
-  }, [roomID]);
+  // Dynamically set the user's name from their session, fallback to a guest name
+  const userName = session?.user?.name || `Guest_${Math.random().toString(36).substring(7)}`;
+  const userEmail = session?.user?.email || '';
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-gray-900">
-      <div ref={containerRef} className="h-full w-full" />
+      <JitsiMeeting
+        domain="meet.jit.si"
+        roomName={`MentorAppSession_${roomID}`} 
+        configOverwrite={{
+          startWithAudioMuted: false,
+          startWithVideoMuted: false,
+          disableModeratorIndicator: true,
+          prejoinPageEnabled: false, 
+        }}
+        interfaceConfigOverwrite={{
+          DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+          SHOW_CHROME_EXTENSION_BANNER: false,
+        }}
+        userInfo={{
+          displayName: userName,
+          email: userEmail,
+        }}
+        getIFrameRef={(iframeRef) => {
+          iframeRef.style.height = '100%';
+          iframeRef.style.width = '100%';
+        }}
+        onReadyToClose={() => {
+          router.push('/profile'); 
+        }}
+      />
     </div>
   );
 }
