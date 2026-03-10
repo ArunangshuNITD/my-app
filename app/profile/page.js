@@ -1,23 +1,24 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import dbConnect from "@/lib/db";
-import Mentor from "@/models/Mentor"; 
-import Order from "@/models/Order"; 
+import Mentor from "@/models/Mentor";
+import Order from "@/models/Order";
 import Review from "@/models/Review";
-import UserActivity from "@/models/UserActivity"; // NEW: Import Activity Model
-import { logUserActivity } from "@/app/actions/userActivity"; // NEW: Import Action
+import UserActivity from "@/models/UserActivity";
+import { logUserActivity } from "@/app/actions/userActivity";
 import { getIncomingBookings, getStudentBookings, getMentorBookingHistory } from "@/app/actions/bookingActions";
-import BookingManager from "@/components/BookingManager"; 
-import StudentBookingList from "@/components/StudentBookingList"; 
-import ActivityHeatmap from "@/components/ActivityHeatmap"; // NEW: Import Component
+import BookingManager from "@/components/BookingManager";
+import StudentBookingList from "@/components/StudentBookingList";
+import ActivityHeatmap from "@/components/ActivityHeatmap";
+import BadgeGallery from "@/components/BadgeGallery";
 import Link from "next/link";
-import { 
-  FaEnvelope, 
-  FaCheckCircle, 
-  FaClock, 
-  FaTimesCircle, 
-  FaGraduationCap, 
-  FaChalkboardTeacher, 
+import {
+  FaEnvelope,
+  FaCheckCircle,
+  FaClock,
+  FaTimesCircle,
+  FaGraduationCap,
+  FaChalkboardTeacher,
   FaArrowRight,
   FaUserEdit,
   FaExternalLinkAlt,
@@ -29,7 +30,7 @@ import {
   FaUsersCog,
   FaStar,
   FaCommentDots,
-  FaFire // NEW Icon for Activity
+  FaFire
 } from "react-icons/fa";
 
 export default async function ProfilePage() {
@@ -43,11 +44,11 @@ export default async function ProfilePage() {
 
   // 1. Log today's activity quietly in the background
   await logUserActivity(session.user.email);
-  
+
   // 2. Fetch User Activity Data for the Heatmap
   const userActivityData = await UserActivity.findOne({ userEmail: session.user.email }).lean();
   const activeDatesArray = userActivityData?.activeDates || [];
-  
+
   // 3. Fetch Mentor Profile
   const mentorProfile = await Mentor.findOne({ email: session.user.email }).lean();
   const isApprovedMentor = mentorProfile?.applicationStatus === "approved";
@@ -56,15 +57,15 @@ export default async function ProfilePage() {
   const myOrders = await Order.find({ userEmail: session.user.email }).sort({ createdAt: -1 }).lean();
 
   // 5. Fetch Bookings
-  let pendingIncomingBookings = []; 
-  let historyIncomingBookings = []; 
-  let studentHistory = [];          
+  let pendingIncomingBookings = [];
+  let historyIncomingBookings = [];
+  let studentHistory = [];
 
   if (isApprovedMentor) {
     pendingIncomingBookings = await getIncomingBookings(session.user.email);
     historyIncomingBookings = await getMentorBookingHistory(session.user.email);
   }
-  
+
   studentHistory = await getStudentBookings(session.user.email);
 
   // 6. Fetch My Written Reviews
@@ -73,13 +74,31 @@ export default async function ProfilePage() {
     .sort({ createdAt: -1 })
     .lean();
 
-  const mentorActiveSessions = isApprovedMentor 
+  // --- COUNTS CALCULATION ---
+  const mentorActiveSessions = isApprovedMentor
     ? historyIncomingBookings.filter(b => b.status === "confirmed" || b.status === "ongoing")
     : [];
 
   const purchaseCount = myOrders.length || 0;
   const activeCount = mentorActiveSessions.length || 0;
   const learningCount = studentHistory.length || 0;
+
+  // --- 7. DYNAMIC BADGE EVALUATION ---
+  const earnedBadgeIds = [];
+
+  // Mentor Badges (Active Teaching Sessions)
+  if (activeCount >= 50) earnedBadgeIds.push("mentor_gold");
+  else if (activeCount >= 20) earnedBadgeIds.push("mentor_silver");
+  else if (activeCount >= 10) earnedBadgeIds.push("mentor_bronze");
+
+  // Student Badges (Learning Sessions)
+  if (learningCount >= 50) earnedBadgeIds.push("student_gold");
+  else if (learningCount >= 20) earnedBadgeIds.push("student_silver");
+  else if (learningCount >= 10) earnedBadgeIds.push("student_bronze");
+
+  // Keep existing static/streak badges 
+  earnedBadgeIds.push("first_blood");
+  earnedBadgeIds.push("streak_10"); 
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black py-12 px-4 md:px-8">
@@ -93,11 +112,11 @@ export default async function ProfilePage() {
           <div className="px-8 pb-8">
             <div className="relative -mt-16 mb-6">
               <div className="w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900 overflow-hidden bg-zinc-200 shadow-md">
-                 <img 
-                    src={session.user.image || `https://ui-avatars.com/api/?name=${session.user.name}`} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover"
-                 />
+                <img
+                  src={session.user.image || `https://ui-avatars.com/api/?name=${session.user.name}`}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
 
@@ -107,11 +126,11 @@ export default async function ProfilePage() {
                   {session.user.name}
                   {isApprovedMentor ? (
                     <span className="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full border border-purple-200 flex items-center gap-1">
-                       <FaChalkboardTeacher /> Verified Mentor
+                      <FaChalkboardTeacher /> Verified Mentor
                     </span>
                   ) : (
                     <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full border border-blue-200 flex items-center gap-1">
-                       <FaGraduationCap /> Student
+                      <FaGraduationCap /> Student
                     </span>
                   )}
                 </h2>
@@ -152,24 +171,24 @@ export default async function ProfilePage() {
             {/* Sessions Office (Full Width Tool) */}
             {isApprovedMentor && (
               <div>
-                  <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-zinc-900 dark:text-white">
-                    <FaCalendarCheck className="text-indigo-500" /> Sessions Office
-                  </h4>
-                  <div className="p-4 rounded-xl border border-stone-100 shadow-md bg-gradient-to-b from-white to-blue-50/30">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 rounded-md bg-indigo-50 shadow-sm">
-                        <FaUsersCog className="text-indigo-600" />
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-zinc-900">Incoming Requests</div>
-                        <div className="text-xs text-zinc-500">Manage your schedule</div>
-                      </div>
+                <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-zinc-900 dark:text-white">
+                  <FaCalendarCheck className="text-indigo-500" /> Sessions Office
+                </h4>
+                <div className="p-4 rounded-xl border border-stone-100 shadow-md bg-gradient-to-b from-white to-blue-50/30">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-md bg-indigo-50 shadow-sm">
+                      <FaUsersCog className="text-indigo-600" />
                     </div>
-                    <BookingManager 
-                      incomingBookings={pendingIncomingBookings} 
-                      historyBookings={historyIncomingBookings} 
-                    />
+                    <div>
+                      <div className="text-sm font-semibold text-zinc-900">Incoming Requests</div>
+                      <div className="text-xs text-zinc-500">Manage your schedule</div>
+                    </div>
                   </div>
+                  <BookingManager
+                    incomingBookings={pendingIncomingBookings}
+                    historyBookings={historyIncomingBookings}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -177,16 +196,26 @@ export default async function ProfilePage() {
 
         {/* --- GRID LAYOUT --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          
+
           {/* LEFT COLUMN: Dashboard Logic (2/3 Width) */}
           <div className="lg:col-span-2 space-y-8">
-            
+
             {/* --- ACTIVITY STREAK (Visible to Everyone) --- */}
             <div>
-               <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
-                  <FaFire className="text-orange-500" /> Activity Streak
-               </h3>
-               <ActivityHeatmap activeDates={activeDatesArray} />
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                <FaFire className="text-orange-500" /> Activity Streak
+              </h3>
+              <div>
+                <ActivityHeatmap
+                  activeDates={activeDatesArray}
+                  earnedBadgeIds={earnedBadgeIds} 
+                />
+              </div>
+            </div>
+
+            {/* --- BADGE GALLERY (NEW) --- */}
+            <div>
+              <BadgeGallery earnedBadgeIds={earnedBadgeIds} />
             </div>
 
             {isApprovedMentor ? (
@@ -194,7 +223,7 @@ export default async function ProfilePage() {
               <>
                 <div>
                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
-                      <FaChalkboardTeacher className="text-purple-500" /> Mentor Status
+                    <FaChalkboardTeacher className="text-purple-500" /> Mentor Status
                   </h3>
                   <div className="p-6 rounded-xl border border-purple-100 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-blue-50/50">
                     <div className="flex items-start gap-4">
@@ -206,10 +235,10 @@ export default async function ProfilePage() {
                         <p className="text-sm text-purple-700/80 mb-3">Your mentor profile is live.</p>
                         <div className="flex flex-wrap gap-3">
                           <Link href={`/mentors/${mentorProfile._id}`} className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors">
-                              View Public Profile <FaExternalLinkAlt size={12} />
+                            View Public Profile <FaExternalLinkAlt size={12} />
                           </Link>
                           <Link href={`/mentors/${mentorProfile._id}/edit`} className="inline-flex items-center gap-2 bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50 px-4 py-2 rounded-lg font-medium text-sm transition-colors">
-                              Edit Profile <FaUserEdit size={14} />
+                            Edit Profile <FaUserEdit size={14} />
                           </Link>
                         </div>
                       </div>
@@ -228,7 +257,7 @@ export default async function ProfilePage() {
 
                 <div>
                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
-                     <FaHistory className="text-zinc-500" /> My Learning (As Student)
+                    <FaHistory className="text-zinc-500" /> My Learning (As Student)
                   </h3>
                   <StudentBookingList bookings={studentHistory} />
                 </div>
@@ -262,63 +291,63 @@ export default async function ProfilePage() {
 
                 {/* --- MY REVIEWS SECTION --- */}
                 <div>
-                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
-                      <FaCommentDots className="text-yellow-500" /> My Reviews
-                   </h3>
-                   {myReviews.length === 0 ? (
-                      <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 text-center">
-                          <p className="text-zinc-500 italic text-sm">You haven't reviewed any mentors yet.</p>
-                      </div>
-                   ) : (
-                      <div className="grid gap-4">
-                         {myReviews.map((review) => (
-                            <div key={review._id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                               <div className="flex justify-between items-start">
-                                  <div className="flex items-center gap-3">
-                                      <img 
-                                          src={review.mentor?.image || "/default-avatar.png"} 
-                                          alt={review.mentor?.name} 
-                                          className="w-10 h-10 rounded-full object-cover"
-                                      />
-                                      <div>
-                                          <p className="font-bold text-sm text-zinc-900 dark:text-white">
-                                              {review.mentor?.name || "Unknown Mentor"}
-                                          </p>
-                                          <div className="flex items-center gap-1">
-                                              <span className="text-yellow-500 text-xs flex">
-                                                  {[...Array(5)].map((_, i) => (
-                                                      <FaStar key={i} className={i < review.rating ? "text-yellow-400" : "text-gray-300"} />
-                                                  ))}
-                                              </span>
-                                          </div>
-                                      </div>
-                                  </div>
-                                  <span className="text-xs text-zinc-400">
-                                      {new Date(review.createdAt).toLocaleDateString()}
+                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                    <FaCommentDots className="text-yellow-500" /> My Reviews
+                  </h3>
+                  {myReviews.length === 0 ? (
+                    <div className="bg-white dark:bg-zinc-900 p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 text-center">
+                      <p className="text-zinc-500 italic text-sm">You haven't reviewed any mentors yet.</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {myReviews.map((review) => (
+                        <div key={review._id} className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={review.mentor?.image || "/default-avatar.png"}
+                                alt={review.mentor?.name}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                              <div>
+                                <p className="font-bold text-sm text-zinc-900 dark:text-white">
+                                  {review.mentor?.name || "Unknown Mentor"}
+                                </p>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-yellow-500 text-xs flex">
+                                    {[...Array(5)].map((_, i) => (
+                                      <FaStar key={i} className={i < review.rating ? "text-yellow-400" : "text-gray-300"} />
+                                    ))}
                                   </span>
-                               </div>
-                               <p className="text-zinc-600 dark:text-zinc-300 text-sm mt-3 italic">
-                                  "{review.comment}"
-                               </p>
-                               <div className="mt-2 text-xs font-semibold flex items-center gap-1">
-                                    {review.booking ? (
-                                       <span className="text-green-600 flex items-center gap-1">
-                                           <FaCheckCircle size={10} /> Verified Session
-                                       </span>
-                                    ) : (
-                                       <span className="text-blue-500">General Review</span>
-                                    )}
-                               </div>
+                                </div>
+                              </div>
                             </div>
-                         ))}
-                      </div>
-                   )}
+                            <span className="text-xs text-zinc-400">
+                              {new Date(review.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p className="text-zinc-600 dark:text-zinc-300 text-sm mt-3 italic">
+                            "{review.comment}"
+                          </p>
+                          <div className="mt-2 text-xs font-semibold flex items-center gap-1">
+                            {review.booking ? (
+                              <span className="text-green-600 flex items-center gap-1">
+                                <FaCheckCircle size={10} /> Verified Session
+                              </span>
+                            ) : (
+                              <span className="text-blue-500">General Review</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Become Mentor Section */}
                 <div>
                   <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-3 flex items-center gap-2">
-                   <FaChalkboardTeacher className="text-zinc-500" /> Become a Mentor
+                    <FaChalkboardTeacher className="text-zinc-500" /> Become a Mentor
                   </h3>
                   {!mentorProfile ? (
                     <div className="bg-zinc-50 dark:bg-zinc-800/50 p-5 rounded-xl border border-zinc-200 dark:border-zinc-700">
@@ -330,20 +359,19 @@ export default async function ProfilePage() {
                       </Link>
                     </div>
                   ) : (
-                    <div className={`p-4 rounded-xl border ${
-                      mentorProfile.applicationStatus === "rejected" ? "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300" :
-                      "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-300"
-                    }`}>
+                    <div className={`p-4 rounded-xl border ${mentorProfile.applicationStatus === "rejected" ? "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300" :
+                        "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-300"
+                      }`}>
                       <div className="flex items-center gap-3">
-                          {mentorProfile.applicationStatus === "pending" && <FaClock size={24} />}
-                          {mentorProfile.applicationStatus === "rejected" && <FaTimesCircle size={24} />}
-                          <div>
-                              <p className="font-bold capitalize">Mentor Application {mentorProfile.applicationStatus}</p>
-                              <p className="text-sm opacity-80 mt-1">
-                                  {mentorProfile.applicationStatus === "pending" && "We are reviewing your application."}
-                                  {mentorProfile.applicationStatus === "rejected" && "Your application was not approved."}
-                              </p>
-                          </div>
+                        {mentorProfile.applicationStatus === "pending" && <FaClock size={24} />}
+                        {mentorProfile.applicationStatus === "rejected" && <FaTimesCircle size={24} />}
+                        <div>
+                          <p className="font-bold capitalize">Mentor Application {mentorProfile.applicationStatus}</p>
+                          <p className="text-sm opacity-80 mt-1">
+                            {mentorProfile.applicationStatus === "pending" && "We are reviewing your application."}
+                            {mentorProfile.applicationStatus === "rejected" && "Your application was not approved."}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -354,56 +382,55 @@ export default async function ProfilePage() {
 
           {/* RIGHT COLUMN: Purchased Items */}
           <div className="lg:col-span-1">
-             <div className="sticky top-6"> 
-                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
-                   <FaShoppingBag className="text-green-600" /> My Purchases
-                </h3>
-                
-                {myOrders.length === 0 ? (
-                   <p className="text-zinc-500 italic bg-white dark:bg-zinc-900 p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 text-center text-sm">
-                     No items purchased yet.
-                   </p>
-                ) : (
-                   <div className="space-y-4">
-                      {myOrders.map((order) => (
-                          <div key={order._id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900 shadow-sm">
-                             <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-800">
-                                  <span className="text-xs font-bold text-zinc-400">#{order._id.toString().slice(-6).toUpperCase()}</span>
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                    order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-700'
-                                  }`}>
-                                    {order.status}
-                                  </span>
-                             </div>
+            <div className="sticky top-6">
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                <FaShoppingBag className="text-green-600" /> My Purchases
+              </h3>
 
-                             <div className="space-y-3">
-                               {order.items.map((item, idx) => (
-                                 <div key={idx} className="flex gap-3 items-center">
-                                   <div className="w-10 h-10 rounded bg-zinc-100 flex-shrink-0 overflow-hidden">
-                                     {item.coverImage ? (
-                                        <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" />
-                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-400">IMG</div>
-                                     )}
-                                   </div>
-                                   <div className="flex-1 min-w-0">
-                                     <p className="text-sm font-medium text-zinc-900 dark:text-zinc-200 truncate">{item.name}</p>
-                                     <p className="text-xs text-zinc-500">₹{Number(item.price).toLocaleString("en-IN")}</p>
-                                   </div>
-                                 </div>
-                               ))}
-                             </div>
+              {myOrders.length === 0 ? (
+                <p className="text-zinc-500 italic bg-white dark:bg-zinc-900 p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 text-center text-sm">
+                  No items purchased yet.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {myOrders.map((order) => (
+                    <div key={order._id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4 bg-white dark:bg-zinc-900 shadow-sm">
+                      <div className="flex justify-between items-center mb-3 pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                        <span className="text-xs font-bold text-zinc-400">#{order._id.toString().slice(-6).toUpperCase()}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${order.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-zinc-100 text-zinc-700'
+                          }`}>
+                          {order.status}
+                        </span>
+                      </div>
 
-                             <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-right">
-                               <span className="text-sm font-bold text-zinc-900 dark:text-white">
-                                 Total: ₹{Number(order.totalAmount).toLocaleString("en-IN")}
-                                </span>
-                             </div>
+                      <div className="space-y-3">
+                        {order.items.map((item, idx) => (
+                          <div key={idx} className="flex gap-3 items-center">
+                            <div className="w-10 h-10 rounded bg-zinc-100 flex-shrink-0 overflow-hidden">
+                              {item.coverImage ? (
+                                <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-[10px] text-zinc-400">IMG</div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-zinc-900 dark:text-zinc-200 truncate">{item.name}</p>
+                              <p className="text-xs text-zinc-500">₹{Number(item.price).toLocaleString("en-IN")}</p>
+                            </div>
                           </div>
-                      ))}
-                   </div>
-                )}
-             </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-right">
+                        <span className="text-sm font-bold text-zinc-900 dark:text-white">
+                          Total: ₹{Number(order.totalAmount).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
