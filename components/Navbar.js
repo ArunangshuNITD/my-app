@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { FiSun, FiMoon, FiShoppingCart, FiMenu, FiX } from "react-icons/fi"; // Added FiMenu, FiX for cleaner icons
+import { FiSun, FiMoon, FiShoppingCart, FiMenu, FiX, FiZap } from "react-icons/fi"; 
 import AuthButton from "./Authbutton";
 import { useCart } from "@/context/CartContext";
 
@@ -19,6 +19,7 @@ export default function Navbar() {
     setMounted(true);
   }, []);
 
+  // Hide Navbar on Dashboard routes
   if (pathname && pathname.startsWith("/dashboard")) {
     return null;
   }
@@ -26,10 +27,14 @@ export default function Navbar() {
   const navLinks = [
     { name: "Home", href: "/" },
     { name: "Find Mentors", href: "/mentors" },
+    { 
+      name: "Bounty Board", 
+      href: "/bounty-board", 
+      icon: <FiZap className="inline mr-1 text-amber-500" /> // Highlight the new feature
+    },
     { name: "Blogs", href: "/blogs" },
     { name: "Store", href: "/store" },
     { name: "About", href: "/about" },
-    { name: "Contact", href: "/contact" },
   ];
 
   const ThemeToggle = () => {
@@ -48,7 +53,6 @@ export default function Navbar() {
     );
   };
 
-  // Helper component for Cart Icon to avoid code duplication
   const CartIcon = () => (
     <Link href="/cart" className="relative p-2 text-zinc-600 dark:text-lime-400 hover:text-indigo-600 transition-colors">
       <FiShoppingCart size={22} />
@@ -87,22 +91,25 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* 2. Desktop Navigation (Hidden on Mobile) */}
-        <div className="hidden items-center gap-8 md:flex">
+        {/* 2. Desktop Navigation */}
+        <div className="hidden items-center gap-6 lg:gap-8 md:flex">
             {navLinks.map((link) => (
               <Link
                 key={link.name}
                 href={link.href}
-                className="text-sm font-medium transition-colors 
-                  text-zinc-600 hover:text-indigo-600 
-                  dark:text-zinc-400 dark:hover:text-lime-400"
+                className={`text-sm font-medium transition-colors flex items-center
+                  ${pathname === link.href 
+                    ? "text-indigo-600 dark:text-lime-400" 
+                    : "text-zinc-600 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-lime-400"
+                  }`}
               >
+                {link.icon && link.icon}
                 {link.name}
               </Link>
             ))}
         </div>
 
-        {/* 3. Auth Buttons & Dark Mode (Desktop Only) */}
+        {/* 3. Actions (Desktop) */}
         <div className="hidden items-center gap-4 md:flex">
           <CartIcon />
           <ThemeToggle />
@@ -110,13 +117,10 @@ export default function Navbar() {
           <AuthButton />
         </div>
 
-        {/* 4. Mobile Header Section (Visible on Phone) */}
+        {/* 4. Mobile Controls */}
         <div className="flex items-center gap-3 md:hidden">
-          {/* ADDED: Cart Icon for Mobile */}
           <CartIcon />
-          
           <ThemeToggle />
-          
           <button
             onClick={() => setIsOpen(!isOpen)}
             className="rounded-md p-2 transition-colors
@@ -135,25 +139,25 @@ export default function Navbar() {
           border-zinc-200 bg-white/95 backdrop-blur-xl 
           dark:border-lime-900/30 dark:bg-black/95">
 
-          {/* Flex container to center everything */}
           <div className="flex flex-col items-center justify-center gap-6 text-center">
             {navLinks.map((link) => (
               <Link
                 key={link.name}
                 href={link.href}
                 onClick={() => setIsOpen(false)}
-                className="text-lg font-semibold transition-colors
-                  text-zinc-700 hover:text-indigo-600 
-                  dark:text-zinc-300 dark:hover:text-lime-400"
+                className={`text-lg font-semibold transition-colors flex items-center
+                  ${pathname === link.href 
+                    ? "text-indigo-600 dark:text-lime-400" 
+                    : "text-zinc-700 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-lime-400"
+                  }`}
               >
+                {link.icon && link.icon}
                 {link.name}
               </Link>
             ))}
 
-            {/* Visual Divider */}
             <div className="h-px w-24 bg-gradient-to-r from-transparent via-zinc-200 to-transparent dark:via-lime-900/50" />
 
-            {/* Auth Button Centered */}
             <div className="w-full flex justify-center pb-4">
               <AuthButton />
             </div>

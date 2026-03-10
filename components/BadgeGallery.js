@@ -1,7 +1,17 @@
 // components/BadgeGallery.js
 "use client";
 
-import { FaFire, FaTrophy, FaStar, FaBrain, FaMedal, FaAward } from "react-icons/fa";
+import { 
+  FaFire, 
+  FaTrophy, 
+  FaStar, 
+  FaBrain, 
+  FaMedal, 
+  FaAward, 
+  FaCrosshairs, 
+  FaCrown, 
+  FaCoins 
+} from "react-icons/fa";
 
 // The master dictionary of badges
 export const ALL_BADGES = [
@@ -20,6 +30,11 @@ export const ALL_BADGES = [
   { id: "student_gold", name: "Gold Scholar", description: "50+ Learning Sessions.", icon: FaAward, color: "text-yellow-400", bg: "bg-yellow-400/10", border: "border-yellow-400/20" },
   { id: "student_silver", name: "Silver Scholar", description: "20+ Learning Sessions.", icon: FaAward, color: "text-slate-400", bg: "bg-slate-400/10", border: "border-slate-400/20" },
   { id: "student_bronze", name: "Bronze Scholar", description: "10+ Learning Sessions.", icon: FaAward, color: "text-orange-700", bg: "bg-orange-700/10", border: "border-orange-700/20" },
+
+  // Bounty Board Badges
+  { id: "bounty_hunter", name: "Bounty Hunter", description: "Successfully solved your first bounty.", icon: FaCrosshairs, color: "text-red-500", bg: "bg-red-500/10", border: "border-red-500/20" },
+  { id: "bounty_master", name: "Bounty Master", description: "Solved 10+ bounties and collected the rewards.", icon: FaCrown, color: "text-amber-500", bg: "bg-amber-500/10", border: "border-amber-500/20" },
+  { id: "generous_scholar", name: "Generous Scholar", description: "Posted 5+ bounties to support the mentor community.", icon: FaCoins, color: "text-emerald-600", bg: "bg-emerald-600/10", border: "border-emerald-600/20" },
 ];
 
 export default function BadgeGallery({ earnedBadgeIds = [] }) {
@@ -46,8 +61,8 @@ export default function BadgeGallery({ earnedBadgeIds = [] }) {
           return (
             <div 
               key={badge.id} 
-              className={`flex flex-col items-center justify-center p-4 rounded-xl border ${badge.bg} ${badge.border} shadow-sm w-32`}
-              title={badge.description} // Added title tooltip to see descriptions on hover
+              className={`flex flex-col items-center justify-center p-4 rounded-xl border ${badge.bg} ${badge.border} shadow-sm w-32 transition-transform hover:scale-105`}
+              title={badge.description} // Tooltip to see descriptions on hover
             >
               <div className={`text-4xl mb-3 drop-shadow-sm ${badge.color}`}>
                 <Icon />

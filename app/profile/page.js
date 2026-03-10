@@ -5,6 +5,7 @@ import Mentor from "@/models/Mentor";
 import Order from "@/models/Order";
 import Review from "@/models/Review";
 import UserActivity from "@/models/UserActivity";
+import Bounty from "@/models/Bounty"; // ADDED: Import Bounty model
 import { logUserActivity } from "@/app/actions/userActivity";
 import { getIncomingBookings, getStudentBookings, getMentorBookingHistory } from "@/app/actions/bookingActions";
 import BookingManager from "@/components/BookingManager";
@@ -74,6 +75,10 @@ export default async function ProfilePage() {
     .sort({ createdAt: -1 })
     .lean();
 
+  // --- ADDED: Fetch Bounty Stats ---
+  const bountiesSolvedCount = await Bounty.countDocuments({ solver: session.user.id, status: 'solved' });
+  const bountiesPostedCount = await Bounty.countDocuments({ student: session.user.id });
+
   // --- COUNTS CALCULATION ---
   const mentorActiveSessions = isApprovedMentor
     ? historyIncomingBookings.filter(b => b.status === "confirmed" || b.status === "ongoing")
@@ -95,6 +100,11 @@ export default async function ProfilePage() {
   if (learningCount >= 50) earnedBadgeIds.push("student_gold");
   else if (learningCount >= 20) earnedBadgeIds.push("student_silver");
   else if (learningCount >= 10) earnedBadgeIds.push("student_bronze");
+
+  // --- ADDED: Bounty Badges Logic ---
+  if (bountiesSolvedCount >= 1) earnedBadgeIds.push("bounty_hunter");
+  if (bountiesSolvedCount >= 10) earnedBadgeIds.push("bounty_master");
+  if (bountiesPostedCount >= 5) earnedBadgeIds.push("generous_scholar");
 
   // Keep existing static/streak badges 
   earnedBadgeIds.push("first_blood");
@@ -153,6 +163,7 @@ export default async function ProfilePage() {
                     )}
                   </div>
 
+                  {/* --- UPDATED: Added Bounty Stats to the Pills --- */}
                   <div className="flex flex-wrap gap-2 mt-3">
                     <div className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm font-medium text-zinc-700 dark:text-zinc-200">
                       {purchaseCount} purchases
@@ -163,6 +174,18 @@ export default async function ProfilePage() {
                     <div className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm font-medium text-zinc-700 dark:text-zinc-200">
                       {learningCount} learning
                     </div>
+                    
+                    {/* New Bounty Pills */}
+                    {bountiesSolvedCount > 0 && (
+                      <div className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-sm font-medium text-amber-700 dark:text-amber-300">
+                        {bountiesSolvedCount} bounties solved
+                      </div>
+                    )}
+                    {bountiesPostedCount > 0 && (
+                      <div className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                        {bountiesPostedCount} bounties posted
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -213,7 +236,7 @@ export default async function ProfilePage() {
               </div>
             </div>
 
-            {/* --- BADGE GALLERY (NEW) --- */}
+            {/* --- BADGE GALLERY --- */}
             <div>
               <BadgeGallery earnedBadgeIds={earnedBadgeIds} />
             </div>
