@@ -5,7 +5,8 @@ import Mentor from "@/models/Mentor";
 import Order from "@/models/Order";
 import Review from "@/models/Review";
 import UserActivity from "@/models/UserActivity";
-import Bounty from "@/models/Bounty"; // ADDED: Import Bounty model
+import Bounty from "@/models/Bounty"; 
+import SkillProgress from "@/models/SkillProgress"; // --- ADDED: Import SkillProgress model ---
 import { logUserActivity } from "@/app/actions/userActivity";
 import { getIncomingBookings, getStudentBookings, getMentorBookingHistory } from "@/app/actions/bookingActions";
 import BookingManager from "@/components/BookingManager";
@@ -31,7 +32,8 @@ import {
   FaUsersCog,
   FaStar,
   FaCommentDots,
-  FaFire
+  FaFire,
+  FaMap // --- ADDED: Map icon for the Journey ---
 } from "react-icons/fa";
 
 export default async function ProfilePage() {
@@ -75,9 +77,13 @@ export default async function ProfilePage() {
     .sort({ createdAt: -1 })
     .lean();
 
-  // --- ADDED: Fetch Bounty Stats ---
+  // 7. Fetch Bounty Stats
   const bountiesSolvedCount = await Bounty.countDocuments({ solver: session.user.id, status: 'solved' });
   const bountiesPostedCount = await Bounty.countDocuments({ student: session.user.id });
+
+  // --- ADDED: 8. Fetch Skill Tree Progress ---
+  const skillProgress = await SkillProgress.findOne({ userId: session.user.id }).lean();
+  const masteredNodesCount = skillProgress?.masteredNodes?.length || 0;
 
   // --- COUNTS CALCULATION ---
   const mentorActiveSessions = isApprovedMentor
@@ -88,7 +94,7 @@ export default async function ProfilePage() {
   const activeCount = mentorActiveSessions.length || 0;
   const learningCount = studentHistory.length || 0;
 
-  // --- 7. DYNAMIC BADGE EVALUATION ---
+  // --- 9. DYNAMIC BADGE EVALUATION ---
   const earnedBadgeIds = [];
 
   // Mentor Badges (Active Teaching Sessions)
@@ -101,10 +107,14 @@ export default async function ProfilePage() {
   else if (learningCount >= 20) earnedBadgeIds.push("student_silver");
   else if (learningCount >= 10) earnedBadgeIds.push("student_bronze");
 
-  // --- ADDED: Bounty Badges Logic ---
+  // Bounty Badges Logic
   if (bountiesSolvedCount >= 1) earnedBadgeIds.push("bounty_hunter");
   if (bountiesSolvedCount >= 10) earnedBadgeIds.push("bounty_master");
   if (bountiesPostedCount >= 5) earnedBadgeIds.push("generous_scholar");
+
+  // --- ADDED: Skill Tree Badges Logic ---
+  if (masteredNodesCount >= 1) earnedBadgeIds.push("journey_initiate");
+  if (masteredNodesCount >= 10) earnedBadgeIds.push("journey_scholar");
 
   // Keep existing static/streak badges 
   earnedBadgeIds.push("first_blood");
@@ -150,6 +160,11 @@ export default async function ProfilePage() {
 
                 <div className="mt-3">
                   <div className="flex flex-wrap items-center gap-3">
+                    {/* --- ADDED: My Journey Button --- */}
+                    <Link href="/journey" className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-full text-sm transition-colors shadow-sm">
+                      <FaMap /> My Journey
+                    </Link>
+
                     <Link href="/profile/sell-pdf" className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-full text-sm transition-colors shadow-sm">
                       <FaFilePdf /> Sell
                     </Link>
@@ -163,7 +178,6 @@ export default async function ProfilePage() {
                     )}
                   </div>
 
-                  {/* --- UPDATED: Added Bounty Stats to the Pills --- */}
                   <div className="flex flex-wrap gap-2 mt-3">
                     <div className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-sm font-medium text-zinc-700 dark:text-zinc-200">
                       {purchaseCount} purchases
@@ -178,12 +192,19 @@ export default async function ProfilePage() {
                     {/* New Bounty Pills */}
                     {bountiesSolvedCount > 0 && (
                       <div className="px-3 py-1 rounded-full bg-amber-100 dark:bg-amber-900/30 text-sm font-medium text-amber-700 dark:text-amber-300">
-                        {bountiesSolvedCount} bounties solved
+                        {bountiesSolvedCount} bounties looted
                       </div>
                     )}
                     {bountiesPostedCount > 0 && (
                       <div className="px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-sm font-medium text-emerald-700 dark:text-emerald-300">
                         {bountiesPostedCount} bounties posted
+                      </div>
+                    )}
+
+                    {/* --- ADDED: Skill Tree Stats Pill --- */}
+                    {masteredNodesCount > 0 && (
+                      <div className="px-3 py-1 rounded-full bg-teal-100 dark:bg-teal-900/30 text-sm font-medium text-teal-700 dark:text-teal-300">
+                        {masteredNodesCount} nodes mastered
                       </div>
                     )}
                   </div>
@@ -222,6 +243,24 @@ export default async function ProfilePage() {
 
           {/* LEFT COLUMN: Dashboard Logic (2/3 Width) */}
           <div className="lg:col-span-2 space-y-8">
+
+            {/* --- ADDED: LEARNING JOURNEY WIDGET --- */}
+            <div>
+              <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
+                <FaMap className="text-teal-500" /> My Learning Journey
+              </h3>
+              <div className="bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20 p-6 rounded-xl border border-teal-100 dark:border-teal-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                <div>
+                  <h4 className="text-lg font-bold text-teal-900 dark:text-teal-200 mb-1">Interactive Skill Tree</h4>
+                  <p className="text-teal-700 dark:text-teal-400 text-sm">
+                    You have mastered <strong>{masteredNodesCount}</strong> nodes. View your map to unlock the next challenge.
+                  </p>
+                </div>
+                <Link href="/journey" className="inline-flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm whitespace-nowrap">
+                  Resume Journey <FaArrowRight size={12} />
+                </Link>
+              </div>
+            </div>
 
             {/* --- ACTIVITY STREAK (Visible to Everyone) --- */}
             <div>

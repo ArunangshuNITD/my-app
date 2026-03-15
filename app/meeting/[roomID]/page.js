@@ -1,6 +1,5 @@
 "use client";
 
-import { use } from 'react'; // 1. Import 'use' from React
 import { JitsiMeeting } from '@jitsi/react-sdk';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react'; 
@@ -9,12 +8,8 @@ export default function MeetingRoom({ params }) {
   const router = useRouter();
   const { data: session } = useSession();
 
-  // 2. Unwrap the params Promise
-  const resolvedParams = use(params);
-  
-  // 3. Extract the ID safely from the resolved object
-  // (Make sure this matches your folder name, e.g., [roomId] or [id])
-  const roomID = resolvedParams?.roomId || resolvedParams?.id || resolvedParams?.roomID || "default-room"; 
+  // Unwrap params safely if using Next.js 14/15
+  const roomID = params?.roomId || params?.roomID || "default-room"; 
 
   // Dynamically set the user's name from their session, fallback to a guest name
   const userName = session?.user?.name || `Guest_${Math.random().toString(36).substring(7)}`;
@@ -24,12 +19,13 @@ export default function MeetingRoom({ params }) {
     <div className="flex h-screen w-full items-center justify-center bg-gray-900">
       <JitsiMeeting
         domain="meet.jit.si"
+        // We add a prefix just to ensure the room is completely unique on Jitsi's public servers
         roomName={`MentorAppSession_${roomID}`} 
         configOverwrite={{
           startWithAudioMuted: false,
           startWithVideoMuted: false,
           disableModeratorIndicator: true,
-          prejoinPageEnabled: false, 
+          prejoinPageEnabled: false, // Set to true if you want them to see a preview screen before joining
         }}
         interfaceConfigOverwrite={{
           DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
@@ -40,10 +36,12 @@ export default function MeetingRoom({ params }) {
           email: userEmail,
         }}
         getIFrameRef={(iframeRef) => {
+          // Ensures the Jitsi iframe takes up the full container
           iframeRef.style.height = '100%';
           iframeRef.style.width = '100%';
         }}
         onReadyToClose={() => {
+          // When the user clicks the red "Leave" button, redirect them back to the dashboard/profile
           router.push('/profile'); 
         }}
       />
