@@ -30,6 +30,11 @@ import { neetBiologyStructuralOrgTree } from '@/lib/curricula/neet/biology/struc
 import { neetBiologyCellTree } from '@/lib/curricula/neet/biology/cell';
 import { neetBiologyPlantPhysTree } from '@/lib/curricula/neet/biology/plant_physiology';
 import { neetBiologyHumanPhysTree } from '@/lib/curricula/neet/biology/human_physiology';
+import { neetBiologyReproductionTree } from '@/lib/curricula/neet/biology/reproduction';
+import { neetBiologyGeneticsTree } from '@/lib/curricula/neet/biology/genetics';
+import { neetBiologyWelfareTree } from '@/lib/curricula/neet/biology/human_welfare';
+import { neetBiologyBiotechTree } from '@/lib/curricula/neet/biology/biotech';
+import { neetBiologyEcologyTree } from '@/lib/curricula/neet/biology/ecology';
 
 const nodeTypes = { custom: CustomNode };
 
@@ -70,31 +75,63 @@ const allCurriculumData = {
       "Organic": jeeChemOrganicTree,
       "Inorganic": jeeChemInorganicTree,
     },
-    Biology: {
+    // Organized Botany and Zoology as primary subjects for NEET
+    Botany: {
       "Diversity in Living World": neetBiologyDiversityTree,
+      "Plant Physiology": neetBiologyPlantPhysTree,
+      "Reproduction (Plants)": neetBiologyReproductionTree,
+      "Genetics & Evolution": neetBiologyGeneticsTree,
+      "Ecology & Environment": neetBiologyEcologyTree,
+      "Biotechnology": neetBiologyBiotechTree,
+    },
+    Zoology: {
       "Structural Organization": neetBiologyStructuralOrgTree,
       "Cell Structure & Function": neetBiologyCellTree,
-      "Plant Physiology": neetBiologyPlantPhysTree,
       "Human Physiology": neetBiologyHumanPhysTree,
+      "Human Reproduction": neetBiologyReproductionTree,
+      "Human Welfare": neetBiologyWelfareTree,
     }
   }
 };
 
+// Color Theme Configuration
+const examThemes = {
+  JEE: {
+    primary: 'bg-blue-600',
+    border: 'border-blue-400',
+    text: 'text-blue-400',
+    accentBorder: 'border-blue-500',
+    backgroundDot: '#2563eb' // Blue-600
+  },
+  NEET: {
+    // --- UPDATED DARK GREENISH THEME ---
+    primary: 'bg-green-900 border-green-700', // Very dark green background and border
+    border: 'border-green-600',
+    text: 'text-green-300', // Lighter green for text on dark background
+    accentBorder: 'border-green-500',
+    backgroundDot: '#15803d', // Green-700 for subtle dots
+    nodeBg: 'bg-green-950', // Extremely dark green for node background
+    nodeBorder: 'border-green-800' // Darker green for node borders
+  }
+}
+
 export default function SkillTreeBoard({ userId, masteredNodes = [], examType = "JEE" }) {
+  // Use the provided examType to select data and theme
   const examData = allCurriculumData[examType];
+  const theme = examThemes[examType] || examThemes.JEE;
 
   const [activeSubject, setActiveSubject] = useState("");
   const [activeSubTab, setActiveSubTab] = useState("");
   const [selectedNode, setSelectedNode] = useState(null);
 
-  // Auto-switch tabs when the exam type changes
+  // Auto-switch tabs when the exam type changes (e.g., from JEE to NEET)
   useEffect(() => {
     if (examData) {
       const subjects = Object.keys(examData);
       if (subjects.length > 0) {
         const firstSubject = subjects[0];
         const subTabs = Object.keys(examData[firstSubject]);
-        
+
         setActiveSubject(firstSubject);
         setActiveSubTab(subTabs.length > 0 ? subTabs[0] : "");
       }
@@ -107,7 +144,6 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
     return examData[activeSubject]?.[activeSubTab] || { nodes: [], edges: [] };
   }, [examData, activeSubject, activeSubTab]);
 
-  // Logic to calculate locked/unlocked status based on masteredNodes
   const nodesWithStatus = useMemo(() => {
     const nodes = activeTree.nodes || [];
     const edges = activeTree.edges || [];
@@ -120,15 +156,16 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
         const prerequisites = edges
           .filter(edge => edge.target === node.id)
           .map(edge => edge.source);
-        
-        const allPrereqsMet = prerequisites.length === 0 || 
-                             prerequisites.every(p => masteredNodes.includes(p));
-        
+
+        const allPrereqsMet = prerequisites.length === 0 ||
+          prerequisites.every(p => masteredNodes.includes(p));
+
         if (allPrereqsMet) status = 'unlocked';
       }
-      return { ...node, data: { ...node.data, status } };
+      // Passing examType and theme context to custom nodes for internal styling
+      return { ...node, data: { ...node.data, status, examType } };
     });
-  }, [masteredNodes, activeTree]);
+  }, [masteredNodes, activeTree, examType]);
 
   const handleNodeClick = (event, node) => {
     if (node.data.status !== 'locked') {
@@ -147,8 +184,8 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
 
   return (
     <div className="flex flex-col gap-4 w-full max-w-7xl mx-auto p-4 bg-slate-950 min-h-screen rounded-[2rem]">
-      
-      {/* --- SUBJECT TABS --- */}
+
+      {/* --- SUBJECT TABS (Physics, Chemistry, Botany, Zoology, etc.) --- */}
       <div className="flex gap-2 border-b border-slate-800 pb-4 overflow-x-auto no-scrollbar">
         {Object.keys(examData).map((subject) => (
           <button
@@ -159,11 +196,10 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
               setActiveSubTab(firstSubTab || "");
               setSelectedNode(null);
             }}
-            className={`px-6 py-2 rounded-t-lg font-bold transition-all whitespace-nowrap ${
-              activeSubject === subject 
-                ? 'bg-blue-600 text-white border-b-2 border-blue-400' 
+            className={`px-6 py-2 rounded-t-lg font-bold transition-all whitespace-nowrap ${activeSubject === subject
+                ? `${theme.primary} text-white border-b-2 ${theme.border}`
                 : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900'
-            }`}
+              }`}
           >
             {subject}
           </button>
@@ -179,11 +215,10 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
               setActiveSubTab(subTab);
               setSelectedNode(null);
             }}
-            className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${
-              activeSubTab === subTab 
-                ? 'bg-slate-800 border-blue-500 text-blue-400' 
+            className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${activeSubTab === subTab
+                ? `bg-slate-800 ${theme.accentBorder} ${theme.text}`
                 : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'
-            }`}
+              }`}
           >
             {subTab}
           </button>
@@ -192,24 +227,25 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
 
       {/* --- THE CANVAS --- */}
       <div className="w-full h-[65vh] bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 relative shadow-2xl">
-        <ReactFlow 
-          key={`${examType}-${activeSubject}-${activeSubTab}`} 
-          nodes={nodesWithStatus} 
-          edges={activeTree.edges} 
+        <ReactFlow
+          key={`${examType}-${activeSubject}-${activeSubTab}`}
+          nodes={nodesWithStatus}
+          edges={activeTree.edges}
           nodeTypes={nodeTypes}
           onNodeClick={handleNodeClick}
           fitView
           fitViewOptions={{ padding: 0.2 }}
         >
-          <Background color="#334155" gap={20} />
+          {/* Background dots now match the exam theme blue or emerald */}
+          <Background color={theme.backgroundDot} gap={20} opacity={0.15} />
           <Controls />
         </ReactFlow>
 
         {selectedNode && (
-          <QuizModal 
-            node={selectedNode} 
-            userId={userId} 
-            onClose={() => setSelectedNode(null)} 
+          <QuizModal
+            node={selectedNode}
+            userId={userId}
+            onClose={() => setSelectedNode(null)}
           />
         )}
       </div>
