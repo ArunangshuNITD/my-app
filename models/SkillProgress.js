@@ -2,19 +2,29 @@ import mongoose from 'mongoose';
 
 const SkillProgressSchema = new mongoose.Schema({
   userId: { 
-    type: String, // <--- CHANGED: Now accepts the UUID string from NextAuth
+    type: String, 
     required: true 
   },
-  // We only need to store the IDs of nodes they have successfully passed
   masteredNodes: [{ 
-    type: String // e.g., "jee_phy_mech_kinematics"
+    type: String 
   }],
-  // Optional: Track specific quiz scores if mentors need them
   quizScores: [{
     nodeId: String,
     score: Number,
     attempts: Number
-  }]
+  }],
+  // NEW: Store aggregate analytics per subject (e.g., "physics", "chemistry")
+  subjectAnalytics: {
+    type: Map,
+    of: {
+      totalAttempted: { type: Number, default: 0 },
+      totalCorrect: { type: Number, default: 0 },
+      easy: { attempted: { type: Number, default: 0 }, correct: { type: Number, default: 0 } },
+      medium: { attempted: { type: Number, default: 0 }, correct: { type: Number, default: 0 } },
+      hard: { attempted: { type: Number, default: 0 }, correct: { type: Number, default: 0 } },
+    },
+    default: {}
+  }
 }, { timestamps: true });
 
 export default mongoose.models.SkillProgress || mongoose.model('SkillProgress', SkillProgressSchema);

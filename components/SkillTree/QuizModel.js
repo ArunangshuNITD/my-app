@@ -1,28 +1,28 @@
 'use client'
 import { useState } from 'react';
 import { submitNodeQuiz, generateDynamicQuiz } from '@/app/actions/skillTreeActions';
-import { X, ArrowRight, CheckCircle, XCircle, ShieldAlert, Trophy, Loader2 } from 'lucide-react';
+import { X, ArrowRight, CheckCircle, XCircle, ShieldAlert, Trophy, Loader2, RotateCcw } from 'lucide-react';
 
 export default function QuizModal({ node, userId, onClose }) {
   // --- STATE ---
   const [step, setStep] = useState('intro'); // 'intro', 'quiz', 'results'
-  const [questions, setQuestions] = useState([]); // Now dynamic
+  const [questions, setQuestions] = useState([]); 
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
-  const [isGenerating, setIsGenerating] = useState(false); // New loading state
+  const [isGenerating, setIsGenerating] = useState(false); 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [finalScore, setFinalScore] = useState(0);
   const [passed, setPassed] = useState(false);
 
-  const PASS_THRESHOLD = 60; // 60% of 11 questions = 7 correct to pass
+  const PASS_THRESHOLD = 60; 
+  const isMastered = node.data.status === 'mastered'; // Check if already passed
 
   // --- LOGIC ---
   const handleStartTrial = async () => {
     setIsGenerating(true);
     setError('');
 
-    // Call our new server action to generate 11 questions
     const res = await generateDynamicQuiz(node.data.label, node.data.description);
     
     if (res.success && res.questions) {
@@ -68,6 +68,7 @@ export default function QuizModal({ node, userId, onClose }) {
     setPassed(hasPassed);
     setStep('results');
 
+    // Submit regardless if they passed previously, to record the new attempt/score
     if (hasPassed) {
       try {
         const res = await submitNodeQuiz(userId, node.id, scorePercentage, hasPassed);
@@ -85,7 +86,6 @@ export default function QuizModal({ node, userId, onClose }) {
   // --- RENDER HELPERS ---
   const currentQ = questions[currentQIndex];
 
-  // Helper for difficulty badge colors
   const getDifficultyColor = (diff) => {
     if (diff === 'easy') return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50';
     if (diff === 'medium') return 'bg-amber-500/20 text-amber-400 border-amber-500/50';
@@ -97,8 +97,7 @@ export default function QuizModal({ node, userId, onClose }) {
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
       <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg relative overflow-hidden flex flex-col max-h-[90vh]">
         
-        {/* Header Strip */}
-        <div className={`h-2 w-full shrink-0 ${step === 'results' ? (passed ? 'bg-green-500' : 'bg-red-500') : 'bg-blue-500'}`}></div>
+        <div className={`h-2 w-full shrink-0 ${step === 'results' ? (passed ? 'bg-green-500' : 'bg-red-500') : (isMastered ? 'bg-yellow-500' : 'bg-blue-500')}`}></div>
 
         <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white transition z-10">
           <X size={24} />
@@ -108,17 +107,18 @@ export default function QuizModal({ node, userId, onClose }) {
           {/* ================= STEP 1: INTRO ================= */}
           {step === 'intro' && (
             <div className="text-center">
-              <div className="w-16 h-16 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                <ShieldAlert size={32} />
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${isMastered ? 'bg-yellow-500/20 text-yellow-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                {isMastered ? <RotateCcw size={32} /> : <ShieldAlert size={32} />}
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                Challenge: {node.data.label}
+                {isMastered ? `Practice: ${node.data.label}` : `Challenge: ${node.data.label}`}
               </h2>
               <p className="text-slate-400 mb-6">
                 {node.data.description}
                 <br /><br />
                 The system will generate a custom trial of <strong>11 questions</strong> (5 Easy, 3 Medium, 3 Hard).
-                You must score at least <strong>{PASS_THRESHOLD}%</strong> to unlock this node and continue your journey.
+                You must score at least <strong>{PASS_THRESHOLD}%</strong> to pass.
+                {isMastered && <span className="block mt-4 text-yellow-400/90 font-medium">You have already mastered this node. Practice again to hone your skills!</span>}
               </p>
               
               {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
@@ -134,9 +134,9 @@ export default function QuizModal({ node, userId, onClose }) {
                 <button 
                   onClick={handleStartTrial} 
                   disabled={isGenerating}
-                  className="flex-1 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-500 transition shadow-[0_0_15px_rgba(37,99,235,0.5)] disabled:opacity-70 flex justify-center items-center gap-2"
+                  className={`flex-1 py-3 rounded-xl font-semibold text-white transition shadow-[0_0_15px_rgba(0,0,0,0.2)] disabled:opacity-70 flex justify-center items-center gap-2 ${isMastered ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-blue-600 hover:bg-blue-500 shadow-[0_0_15px_rgba(37,99,235,0.5)]'}`}
                 >
-                  {isGenerating ? <><Loader2 className="animate-spin" size={20} /> Generating...</> : 'Start Trial'}
+                  {isGenerating ? <><Loader2 className="animate-spin" size={20} /> Generating...</> : (isMastered ? 'Practice Again' : 'Start Trial')}
                 </button>
               </div>
             </div>
@@ -154,7 +154,6 @@ export default function QuizModal({ node, userId, onClose }) {
                 <h3 className="text-lg font-medium text-white flex-1">
                   {currentQ.text}
                 </h3>
-                {/* Difficulty Badge */}
                 <span className={`px-2 py-1 text-xs font-bold uppercase rounded border ${getDifficultyColor(currentQ.difficulty)}`}>
                   {currentQ.difficulty}
                 </span>
@@ -204,7 +203,7 @@ export default function QuizModal({ node, userId, onClose }) {
               )}
 
               <h2 className="text-3xl font-bold text-white mb-2">
-                {passed ? 'Node Mastered!' : 'Trial Failed'}
+                {passed ? (isMastered ? 'Skill Honed!' : 'Node Mastered!') : 'Trial Failed'}
               </h2>
               
               <p className="text-slate-400 mb-6">

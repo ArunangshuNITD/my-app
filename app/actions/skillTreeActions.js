@@ -27,18 +27,41 @@ export async function submitNodeQuiz(userId, nodeId, score, passedThreshold) {
   try {
     if (!passedThreshold) return { success: false, message: "Keep trying!" };
 
-    // Find user and add the new nodeId to their mastered array
-    await SkillProgress.findOneAndUpdate(
-      { userId },
-      { 
-        $addToSet: { masteredNodes: nodeId }, // $addToSet prevents duplicates
-        $push: { quizScores: { nodeId, score, attempts: 1 } }
-      },
-      { upsert: true, new: true } // Create document if it doesn't exist
-    );
+    // Fetch existing progress
+    let progress = await SkillProgress.findOne({ userId });
 
-    revalidatePath('/journey'); // Refresh the page to show new unlocked nodes
-    return { success: true, message: "Node Mastered!" };
+    if (!progress) {
+      // Create new record for first-time users
+      await SkillProgress.create({
+        userId,
+        masteredNodes: [nodeId],
+        quizScores: [{ nodeId, score, attempts: 1 }]
+      });
+    } else {
+      // Add node to mastered if not already there
+      if (!progress.masteredNodes.includes(nodeId)) {
+        progress.masteredNodes.push(nodeId);
+      }
+
+      // Check if user has already completed this specific node
+      const existingScoreIndex = progress.quizScores.findIndex(q => q.nodeId === nodeId);
+      
+      if (existingScoreIndex >= 0) {
+        // Reattempt logic: Increment attempts, keep highest score
+        progress.quizScores[existingScoreIndex].attempts = (progress.quizScores[existingScoreIndex].attempts || 1) + 1;
+        if (score > progress.quizScores[existingScoreIndex].score) {
+          progress.quizScores[existingScoreIndex].score = score;
+        }
+      } else {
+        // First time passing this node
+        progress.quizScores.push({ nodeId, score, attempts: 1 });
+      }
+
+      await progress.save();
+    }
+
+    revalidatePath('/journey'); 
+    return { success: true, message: "Node Update Successful!" };
   } catch (error) {
     console.error("Error updating progress:", error);
     return { success: false, message: "Server error" };
@@ -50,10 +73,8 @@ export async function submitNodeQuiz(userId, nodeId, score, passedThreshold) {
 // ==========================================
 export async function generateDynamicQuiz(topicName, topicDescription) {
   try {
-    // Initialize AI client
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     
-    // Using your excellent generationConfig to force strict JSON!
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash", 
       generationConfig: {
@@ -94,8 +115,6 @@ export async function generateDynamicQuiz(topicName, topicDescription) {
     const result = await model.generateContent(prompt);
     const textResult = result.response.text();
     
-    // Because we used responseMimeType: 'application/json', we don't need regex. 
-    // We can just parse it safely!
     const questions = JSON.parse(textResult);
     
     return { success: true, questions };

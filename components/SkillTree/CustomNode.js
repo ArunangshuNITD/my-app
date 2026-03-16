@@ -10,7 +10,8 @@ export default function CustomNode({ data }) {
 
   return (
     <div className={`px-4 py-3 shadow-lg rounded-xl border-2 w-48 transition-all ${
-      isMastered ? 'bg-yellow-500 border-yellow-300 text-white' : 
+      // ADDED: cursor-pointer and hover:scale-105 to the mastered state
+      isMastered ? 'bg-yellow-500 border-yellow-300 text-white cursor-pointer hover:scale-105' : 
       isUnlocked ? 'bg-blue-600 border-blue-400 text-white cursor-pointer hover:scale-105' : 
       'bg-gray-200 border-gray-300 text-gray-500 opacity-70'
     }`}>
