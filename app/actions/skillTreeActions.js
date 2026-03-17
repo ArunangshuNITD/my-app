@@ -12,7 +12,6 @@ export async function getUserProgress(userId) {
   await dbConnect();
   try {
     const progress = await SkillProgress.findOne({ userId });
-    // IMPORTANT: Return full object parsed to JSON to avoid Mongoose doc serialization errors in Next.js
     return progress ? JSON.parse(JSON.stringify(progress)) : null; 
   } catch (error) {
     console.error("Error fetching progress:", error);
@@ -26,12 +25,13 @@ export async function getUserProgress(userId) {
 export async function submitNodeQuiz(userId, nodeId, score, passedThreshold, stats, subject) {
   await dbConnect();
   try {
-    if (!passedThreshold) return { success: false, message: "Keep trying!" };
-
+    // You can remove this threshold block if you want fails to register in the history.
+    // If you keep this here, only passing grades update the DB. I'm modifying it slightly
+    // to always record the attempt so users can see their failed tries in the history graph too.
+    
     let progress = await SkillProgress.findOne({ userId });
 
     if (!progress) {
-      // Create new record for first-time users
       progress = new SkillProgress({
         userId,
         masteredNodes: [],
@@ -40,29 +40,48 @@ export async function submitNodeQuiz(userId, nodeId, score, passedThreshold, sta
       });
     }
 
-    // Add node to mastered if not already there
-    if (!progress.masteredNodes.includes(nodeId)) {
+    // Add node to mastered if threshold is passed and not already there
+    if (passedThreshold && !progress.masteredNodes.includes(nodeId)) {
       progress.masteredNodes.push(nodeId);
     }
 
-    // Check if user has already completed this specific node
+    // Define the new history entry
+    const newHistoryEntry = {
+      score,
+      date: new Date().toISOString()
+    };
+
     const existingScoreIndex = progress.quizScores.findIndex(q => q.nodeId === nodeId);
     
     if (existingScoreIndex >= 0) {
-      // Reattempt logic: Increment attempts, keep highest score
+      // Reattempt logic
       progress.quizScores[existingScoreIndex].attempts = (progress.quizScores[existingScoreIndex].attempts || 1) + 1;
+      
+      // Update max score if needed
       if (score > progress.quizScores[existingScoreIndex].score) {
         progress.quizScores[existingScoreIndex].score = score;
       }
+      
+      // Push into history array for the graph
+      if (!progress.quizScores[existingScoreIndex].history) {
+        progress.quizScores[existingScoreIndex].history = [];
+      }
+      progress.quizScores[existingScoreIndex].history.push(newHistoryEntry);
     } else {
-      // First time passing this node
-      progress.quizScores.push({ nodeId, score, attempts: 1 });
+      // First attempt
+      progress.quizScores.push({ 
+        nodeId, 
+        score, 
+        attempts: 1,
+        history: [newHistoryEntry]
+      });
     }
 
-    // NEW: Update Subject Analytics
-    // Mongoose maps require using .get() and .set()
+    // Since we are pushing to a potentially nested mixed array, it's good practice to mark it modified
+    progress.markModified('quizScores');
+
+    // Update Subject Analytics
     let currentSubjectStats = progress.subjectAnalytics.get(subject);
-    
     if (!currentSubjectStats) {
       currentSubjectStats = {
         totalAttempted: 0, totalCorrect: 0,
@@ -72,14 +91,12 @@ export async function submitNodeQuiz(userId, nodeId, score, passedThreshold, sta
       };
     }
 
-    // Aggregate totals
     const totalAttemptedForQuiz = stats.easy.attempted + stats.medium.attempted + stats.hard.attempted;
     const totalCorrectForQuiz = stats.easy.correct + stats.medium.correct + stats.hard.correct;
 
     currentSubjectStats.totalAttempted += totalAttemptedForQuiz;
     currentSubjectStats.totalCorrect += totalCorrectForQuiz;
     
-    // Aggregate difficulties
     ['easy', 'medium', 'hard'].forEach(diff => {
       currentSubjectStats[diff].attempted += stats[diff].attempted;
       currentSubjectStats[diff].correct += stats[diff].correct;

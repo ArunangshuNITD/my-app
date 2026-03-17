@@ -4,8 +4,7 @@ import { submitNodeQuiz, generateDynamicQuiz } from '@/app/actions/skillTreeActi
 import { X, ArrowRight, CheckCircle, XCircle, ShieldAlert, Trophy, Loader2, RotateCcw } from 'lucide-react';
 
 export default function QuizModal({ node, userId, onClose }) {
-  // --- STATE ---
-  const [step, setStep] = useState('intro'); // 'intro', 'quiz', 'results'
+  const [step, setStep] = useState('intro');
   const [questions, setQuestions] = useState([]); 
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
@@ -16,9 +15,9 @@ export default function QuizModal({ node, userId, onClose }) {
   const [passed, setPassed] = useState(false);
 
   const PASS_THRESHOLD = 60; 
-  const isMastered = node.data.status === 'mastered'; // Check if already passed
+  const isMastered = node.data.status === 'mastered'; 
+  const trialHistory = node.data.stats?.history || []; // Grab history from node payload
 
-  // --- LOGIC ---
   const handleStartTrial = async () => {
     setIsGenerating(true);
     setError('');
@@ -55,8 +54,6 @@ export default function QuizModal({ node, userId, onClose }) {
     setError('');
 
     let correctCount = 0;
-    
-    // NEW: Initialize stats tracker
     const stats = {
       easy: { attempted: 0, correct: 0 },
       medium: { attempted: 0, correct: 0 },
@@ -66,8 +63,6 @@ export default function QuizModal({ node, userId, onClose }) {
     questions.forEach((q, index) => {
       const isCorrect = selectedAnswers[index] === q.correctAnswer;
       if (isCorrect) correctCount++;
-      
-      // Update counters based on difficulty
       if (stats[q.difficulty]) {
         stats[q.difficulty].attempted++;
         if (isCorrect) stats[q.difficulty].correct++;
@@ -81,27 +76,20 @@ export default function QuizModal({ node, userId, onClose }) {
     setPassed(hasPassed);
     setStep('results');
 
-    // Extract subject from nodeId (Assuming nodeId looks like "jee_physics_kinematics")
-    // Fallback to 'general' if the naming convention isn't matched
     const subject = node.id.split('_')[1] || 'general';
 
-    // Submit regardless if they passed previously, to record the new attempt/score
-    if (hasPassed) {
-      try {
-        // Pass the new stats and subject to the backend action
-        const res = await submitNodeQuiz(userId, node.id, scorePercentage, hasPassed, stats, subject);
-        if (!res.success) {
-          setError(res.message);
-        }
-      } catch (err) {
-        setError('Failed to sync progress with server.');
+    try {
+      const res = await submitNodeQuiz(userId, node.id, scorePercentage, hasPassed, stats, subject);
+      if (!res.success) {
+        setError(res.message);
       }
+    } catch (err) {
+      setError('Failed to sync progress with server.');
     }
     
     setIsSubmitting(false);
   };
 
-  // --- RENDER HELPERS ---
   const currentQ = questions[currentQIndex];
 
   const getDifficultyColor = (diff) => {
@@ -131,13 +119,33 @@ export default function QuizModal({ node, userId, onClose }) {
               <h2 className="text-2xl font-bold text-white mb-2">
                 {isMastered ? `Practice: ${node.data.label}` : `Challenge: ${node.data.label}`}
               </h2>
-              <p className="text-slate-400 mb-6">
+              <p className="text-slate-400 mb-6 text-sm">
                 {node.data.description}
                 <br /><br />
                 The system will generate a custom trial of <strong>11 questions</strong> (5 Easy, 3 Medium, 3 Hard).
                 You must score at least <strong>{PASS_THRESHOLD}%</strong> to pass.
-                {isMastered && <span className="block mt-4 text-yellow-400/90 font-medium">You have already mastered this node. Practice again to hone your skills!</span>}
               </p>
+
+              {/* PAST TRIALS HISTORY GRAPH */}
+              {trialHistory.length > 0 && (
+                <div className="bg-slate-800/50 rounded-xl p-4 mb-6 border border-slate-700/50">
+                   <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Past Trials Performance</h3>
+                   <div className="flex items-end gap-2 h-24 border-b border-l border-slate-700 pb-2 pl-2 overflow-x-auto no-scrollbar">
+                     {trialHistory.map((run, idx) => (
+                       <div key={idx} className="flex flex-col items-center flex-1 min-w-[20px] group relative">
+                          <div className="absolute -top-8 bg-slate-900 border border-slate-600 shadow-xl text-[10px] font-bold text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap pointer-events-none">
+                            {run.score}%
+                          </div>
+                          <div 
+                            className={`w-full max-w-[24px] rounded-t-sm transition-all duration-700 ${run.score >= PASS_THRESHOLD ? 'bg-green-500' : 'bg-red-500'}`}
+                            style={{ height: `${Math.max(run.score, 5)}%` }} // Forces a tiny bar even for 0%
+                          />
+                       </div>
+                     ))}
+                   </div>
+                   <p className="text-[10px] text-slate-500 mt-2">Hover over bars to view detailed scores</p>
+                </div>
+              )}
               
               {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 

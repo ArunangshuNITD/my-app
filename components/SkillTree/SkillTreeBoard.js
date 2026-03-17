@@ -75,7 +75,6 @@ const allCurriculumData = {
       "Organic": jeeChemOrganicTree,
       "Inorganic": jeeChemInorganicTree,
     },
-    // Organized Botany and Zoology as primary subjects for NEET
     Botany: {
       "Diversity in Living World": neetBiologyDiversityTree,
       "Plant Physiology": neetBiologyPlantPhysTree,
@@ -101,27 +100,36 @@ const examThemes = {
     border: 'border-blue-400',
     text: 'text-blue-400',
     accentBorder: 'border-blue-500',
-    backgroundDot: '#2563eb' // Blue-600
+    backgroundDot: '#2563eb', // Blue-600
+    nodeBg: 'bg-blue-950',     // Added to match NEET structure
+    nodeBorder: 'border-blue-800' // Added to match NEET structure
   },
   NEET: {
-    // --- UPDATED DARK GREENISH THEME ---
-    primary: 'bg-green-900 border-green-700', // Very dark green background and border
+    primary: 'bg-green-900 border-green-700', 
     border: 'border-green-600',
-    text: 'text-green-300', // Lighter green for text on dark background
+    text: 'text-green-300', 
     accentBorder: 'border-green-500',
-    backgroundDot: '#15803d', // Green-700 for subtle dots
-    nodeBg: 'bg-green-950', // Extremely dark green for node background
-    nodeBorder: 'border-green-800' // Darker green for node borders
+    backgroundDot: '#15803d', 
+    nodeBg: 'bg-green-950', 
+    nodeBorder: 'border-green-800' 
   }
-}
+};
 
 export default function SkillTreeBoard({ userId, masteredNodes = [], examType = "JEE" }) {
-  // Use the provided examType to select data and theme
   const examData = allCurriculumData[examType];
   const theme = examThemes[examType] || examThemes.JEE;
 
-  const [activeSubject, setActiveSubject] = useState("");
-  const [activeSubTab, setActiveSubTab] = useState("");
+  // Lazily initialize state to avoid empty initial renders
+  const [activeSubject, setActiveSubject] = useState(() => {
+    return examData ? Object.keys(examData)[0] || "" : "";
+  });
+  const [activeSubTab, setActiveSubTab] = useState(() => {
+    if (examData && Object.keys(examData).length > 0) {
+      const firstSubject = Object.keys(examData)[0];
+      return Object.keys(examData[firstSubject])[0] || "";
+    }
+    return "";
+  });
   const [selectedNode, setSelectedNode] = useState(null);
 
   // Auto-switch tabs when the exam type changes (e.g., from JEE to NEET)
@@ -130,7 +138,7 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
       const subjects = Object.keys(examData);
       if (subjects.length > 0) {
         const firstSubject = subjects[0];
-        const subTabs = Object.keys(examData[firstSubject]);
+        const subTabs = Object.keys(examData[firstSubject] || {});
 
         setActiveSubject(firstSubject);
         setActiveSubTab(subTabs.length > 0 ? subTabs[0] : "");
@@ -192,14 +200,15 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
             key={subject}
             onClick={() => {
               setActiveSubject(subject);
-              const firstSubTab = Object.keys(examData[subject])[0];
+              const firstSubTab = Object.keys(examData[subject] || {})[0];
               setActiveSubTab(firstSubTab || "");
               setSelectedNode(null);
             }}
-            className={`px-6 py-2 rounded-t-lg font-bold transition-all whitespace-nowrap ${activeSubject === subject
+            className={`px-6 py-2 rounded-t-lg font-bold transition-all whitespace-nowrap ${
+              activeSubject === subject
                 ? `${theme.primary} text-white border-b-2 ${theme.border}`
                 : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900'
-              }`}
+            }`}
           >
             {subject}
           </button>
@@ -215,10 +224,11 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
               setActiveSubTab(subTab);
               setSelectedNode(null);
             }}
-            className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${activeSubTab === subTab
+            className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${
+              activeSubTab === subTab
                 ? `bg-slate-800 ${theme.accentBorder} ${theme.text}`
                 : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'
-              }`}
+            }`}
           >
             {subTab}
           </button>
@@ -230,13 +240,13 @@ export default function SkillTreeBoard({ userId, masteredNodes = [], examType = 
         <ReactFlow
           key={`${examType}-${activeSubject}-${activeSubTab}`}
           nodes={nodesWithStatus}
-          edges={activeTree.edges}
+          edges={activeTree.edges || []}
           nodeTypes={nodeTypes}
           onNodeClick={handleNodeClick}
           fitView
           fitViewOptions={{ padding: 0.2 }}
         >
-          {/* Background dots now match the exam theme blue or emerald */}
+          {/* Background dots dynamically match the exam theme */}
           <Background color={theme.backgroundDot} gap={20} opacity={0.15} />
           <Controls />
         </ReactFlow>
