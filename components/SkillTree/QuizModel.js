@@ -55,9 +55,22 @@ export default function QuizModal({ node, userId, onClose }) {
     setError('');
 
     let correctCount = 0;
+    
+    // NEW: Initialize stats tracker
+    const stats = {
+      easy: { attempted: 0, correct: 0 },
+      medium: { attempted: 0, correct: 0 },
+      hard: { attempted: 0, correct: 0 }
+    };
+
     questions.forEach((q, index) => {
-      if (selectedAnswers[index] === q.correctAnswer) {
-        correctCount++;
+      const isCorrect = selectedAnswers[index] === q.correctAnswer;
+      if (isCorrect) correctCount++;
+      
+      // Update counters based on difficulty
+      if (stats[q.difficulty]) {
+        stats[q.difficulty].attempted++;
+        if (isCorrect) stats[q.difficulty].correct++;
       }
     });
 
@@ -68,10 +81,15 @@ export default function QuizModal({ node, userId, onClose }) {
     setPassed(hasPassed);
     setStep('results');
 
+    // Extract subject from nodeId (Assuming nodeId looks like "jee_physics_kinematics")
+    // Fallback to 'general' if the naming convention isn't matched
+    const subject = node.id.split('_')[1] || 'general';
+
     // Submit regardless if they passed previously, to record the new attempt/score
     if (hasPassed) {
       try {
-        const res = await submitNodeQuiz(userId, node.id, scorePercentage, hasPassed);
+        // Pass the new stats and subject to the backend action
+        const res = await submitNodeQuiz(userId, node.id, scorePercentage, hasPassed, stats, subject);
         if (!res.success) {
           setError(res.message);
         }
