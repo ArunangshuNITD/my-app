@@ -11,9 +11,12 @@ const SkillProgressSchema = new mongoose.Schema({
   quizScores: [{
     nodeId: String,
     score: Number,
-    attempts: Number
+    attempts: Number,
+    history: [{
+      score: Number,
+      date: Date
+    }]
   }],
-  // NEW: Store aggregate analytics per subject (e.g., "physics", "chemistry")
   subjectAnalytics: {
     type: Map,
     of: {
@@ -24,6 +27,18 @@ const SkillProgressSchema = new mongoose.Schema({
       hard: { attempted: { type: Number, default: 0 }, correct: { type: Number, default: 0 } },
     },
     default: {}
+  },
+  roadmap: {
+    generatedAt: Date,
+    days: [{
+      day: Number,
+      title: String,
+      tasks: [{
+        id: String,
+        text: String,
+        completed: { type: Boolean, default: false }
+      }]
+    }]
   }
 }, { timestamps: true });
 

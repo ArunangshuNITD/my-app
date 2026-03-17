@@ -145,6 +145,7 @@ my-app/
 │   ├── MessageMentorButton.js
 │   ├── MessagesClientlayout.js
 │   ├── Navbar.js
+|   ├── ProgressRing.js
 │   ├── Providers.js
 │   ├── RateMentorButton.js
 │   ├── ReviewModal.js
