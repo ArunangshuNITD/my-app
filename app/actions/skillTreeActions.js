@@ -25,27 +25,84 @@ export async function getUserProgress(userId) {
 export async function submitNodeQuiz(userId, nodeId, score, passedThreshold, stats, subject) {
   await dbConnect();
   try {
-    // You can remove this threshold block if you want fails to register in the history.
-    // If you keep this here, only passing grades update the DB. I'm modifying it slightly
-    // to always record the attempt so users can see their failed tries in the history graph too.
-    
     let progress = await SkillProgress.findOne({ userId });
 
     if (!progress) {
       progress = new SkillProgress({
         userId,
         masteredNodes: [],
+        badges: [], // Ensure badges array is initialized
         quizScores: [],
         subjectAnalytics: {}
       });
     }
 
+    const newlyUnlockedBadges = [];
+
     // Add node to mastered if threshold is passed and not already there
     if (passedThreshold && !progress.masteredNodes.includes(nodeId)) {
       progress.masteredNodes.push(nodeId);
+
+      // --- BADGE EVALUATION LOGIC ---
+      if (!progress.badges) progress.badges = [];
+
+      const award = (badgeId) => {
+        if (!progress.badges.includes(badgeId)) {
+          progress.badges.push(badgeId);
+          newlyUnlockedBadges.push(badgeId);
+        }
+      };
+
+      // 1. Count current mastery levels based on ID prefixes
+      const jpCount = progress.masteredNodes.filter(id => id.includes('jee_phys')).length;
+      const jcCount = progress.masteredNodes.filter(id => id.includes('jee_chem')).length;
+      const jmCount = progress.masteredNodes.filter(id => id.includes('jee_math')).length;
+      const npCount = progress.masteredNodes.filter(id => id.includes('neet_phys')).length;
+      const ncCount = progress.masteredNodes.filter(id => id.includes('neet_chem')).length;
+      const nbCount = progress.masteredNodes.filter(id => id.includes('neet_bio')).length;
+      const totalNodes = progress.masteredNodes.length;
+
+      // Platform Badges
+      if (totalNodes === 1) award('first_blood');
+
+      // --- JEE Physics ---
+      if (jpCount >= 1) award('jee_phys_newbie');
+      if (jpCount >= 5) award('jee_phys_amateur');
+      if (jpCount >= 10) award('jee_phys_pro');
+      if (jpCount >= 25) award('jee_phys_knight');
+
+      // --- JEE Chemistry ---
+      if (jcCount >= 1) award('jee_chem_newbie');
+      if (jcCount >= 5) award('jee_chem_amateur');
+      if (jcCount >= 10) award('jee_chem_pro');
+      if (jcCount >= 25) award('jee_chem_knight');
+
+      // --- JEE Maths ---
+      if (jmCount >= 1) award('jee_math_newbie');
+      if (jmCount >= 5) award('jee_math_amateur');
+      if (jmCount >= 10) award('jee_math_pro');
+      if (jmCount >= 25) award('jee_math_knight');
+
+      // --- NEET Physics ---
+      if (npCount >= 1) award('neet_phys_newbie');
+      if (npCount >= 5) award('neet_phys_amateur');
+      if (npCount >= 10) award('neet_phys_pro');
+      if (npCount >= 25) award('neet_phys_knight');
+
+      // --- NEET Chemistry ---
+      if (ncCount >= 1) award('neet_chem_newbie');
+      if (ncCount >= 5) award('neet_chem_amateur');
+      if (ncCount >= 10) award('neet_chem_pro');
+      if (ncCount >= 25) award('neet_chem_knight');
+
+      // --- NEET Biology ---
+      if (nbCount >= 1) award('neet_bio_newbie');
+      if (nbCount >= 5) award('neet_bio_amateur');
+      if (nbCount >= 10) award('neet_bio_pro');
+      if (nbCount >= 25) award('neet_bio_knight');
     }
 
-    // Define the new history entry
+    // --- History & Score Tracking ---
     const newHistoryEntry = {
       score,
       date: new Date().toISOString()
@@ -79,8 +136,9 @@ export async function submitNodeQuiz(userId, nodeId, score, passedThreshold, sta
 
     // Since we are pushing to a potentially nested mixed array, it's good practice to mark it modified
     progress.markModified('quizScores');
+    progress.markModified('badges');
 
-    // Update Subject Analytics
+    // --- Subject Analytics ---
     let currentSubjectStats = progress.subjectAnalytics.get(subject);
     if (!currentSubjectStats) {
       currentSubjectStats = {
@@ -106,7 +164,13 @@ export async function submitNodeQuiz(userId, nodeId, score, passedThreshold, sta
     await progress.save();
 
     revalidatePath('/journey'); 
-    return { success: true, message: "Node Update Successful!" };
+    
+    // Return newlyUnlockedBadges so the frontend can trigger the popup
+    return { 
+      success: true, 
+      message: "Node Update Successful!",
+      newBadges: newlyUnlockedBadges 
+    };
   } catch (error) {
     console.error("Error updating progress:", error);
     return { success: false, message: "Server error" };

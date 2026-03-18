@@ -8,6 +8,9 @@ const SkillProgressSchema = new mongoose.Schema({
   masteredNodes: [{ 
     type: String 
   }],
+  badges: [{ 
+    type: String // <-- ADDED: Array to store unlocked badge IDs
+  }],
   quizScores: [{
     nodeId: String,
     score: Number,
