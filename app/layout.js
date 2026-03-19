@@ -5,6 +5,7 @@ import Footer from "@/components/Footer";
 import Providers from "@/components/Providers";
 import Chatbot from "@/components/Chatbot";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata = {
   title: "Mentor Connect",
@@ -17,7 +18,7 @@ export default function RootLayout({ children }) {
       <body className="bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 antialiased">
         <Providers>
           <div className="flex min-h-screen flex-col">
-            <Navbar/>
+            <Navbar />
             <main className="flex-grow">
               {/* Just render children directly here */}
               {children}
@@ -26,7 +27,10 @@ export default function RootLayout({ children }) {
           </div>
           <Chatbot />
         </Providers>
+        
+        {/* Vercel Metrics & Analytics */}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
