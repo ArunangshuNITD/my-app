@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
-import PvPTimer from "@/components/pvp/PvPTimer"; 
+import PvPTimer from "@/components/PvPTimer";
 import { submitMatchResults } from "@/app/actions/pvpActions"; 
 import { Loader2, Swords, X } from "lucide-react";
 
