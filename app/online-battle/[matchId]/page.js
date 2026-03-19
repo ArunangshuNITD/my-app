@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, use } from "react"; // <-- Added 'use' here
+import { useEffect, useState, use } from "react"; 
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import PvPTimer from "@/components/PvPTimer";
@@ -7,7 +7,6 @@ import { submitMatchResults } from "@/app/actions/pvpActions";
 import { Loader2, Swords, X } from "lucide-react";
 
 export default function LivePvPBoard({ params }) {
-  // NEW: Unwrap the params Promise using React.use()
   const resolvedParams = use(params);
   const matchId = resolvedParams.matchId;
 
@@ -20,20 +19,29 @@ export default function LivePvPBoard({ params }) {
   const [myScore, setMyScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
   
-  // Expanded game states for the Ready Check
-  const [gameStatus, setGameStatus] = useState("waiting"); // waiting, opponent_found, playing, ended
+  const [gameStatus, setGameStatus] = useState("waiting"); 
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchMatch = async () => {
-      const res = await fetch(`/api/matches/${matchId}`); 
-      const data = await res.json();
-      setMatchData(data.match); 
-      
-      // If the match is already full/playing from the DB side
-      if (data.match.status === "playing") setGameStatus("playing");
+      try {
+        const res = await fetch(`/api/matches/${matchId}`); 
+        const data = await res.json();
+        
+        // 🚨 FIX: Safety check to prevent UI crash
+        if (data.success && data.match) {
+          setMatchData(data.match); 
+          if (data.match.status === "playing") setGameStatus("playing");
+        } else {
+          console.error("Match error:", data.error);
+          alert("This arena does not exist or has expired.");
+          router.push('/online-battle');
+        }
+      } catch (err) {
+        console.error("Failed to fetch match:", err);
+      }
     };
     fetchMatch();
 
@@ -47,7 +55,7 @@ export default function LivePvPBoard({ params }) {
       })
       .on('broadcast', { event: 'player_joined' }, (payload) => {
         if (payload.userId !== userId) {
-          setGameStatus("opponent_found"); // Trigger Ready Check
+          setGameStatus("opponent_found"); 
         }
       })
       .on('broadcast', { event: 'player_ready' }, (payload) => {
@@ -63,13 +71,11 @@ export default function LivePvPBoard({ params }) {
       })
       .subscribe();
 
-    // Broadcast that we've entered the lobby
     channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId } });
 
     return () => { supabase.removeChannel(channel); };
   }, [matchId, userId, router]);
 
-  // Start the game instantly when both players are ready
   useEffect(() => {
     if (isReady && opponentReady) {
       setGameStatus("playing");
@@ -135,7 +141,6 @@ export default function LivePvPBoard({ params }) {
 
   if (!matchData) return <div className="min-h-screen bg-slate-950 flex justify-center items-center text-white"><Loader2 className="animate-spin w-10 h-10 text-blue-500" /></div>;
 
-  // 1. Searching for opponent
   if (gameStatus === "waiting") {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white">
@@ -150,7 +155,6 @@ export default function LivePvPBoard({ params }) {
     );
   }
 
-  // 2. Opponent Found - Ready Check
   if (gameStatus === "opponent_found") {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white">
@@ -193,7 +197,6 @@ export default function LivePvPBoard({ params }) {
     );
   }
 
-  // 3. Match Ended
   if (gameStatus === "ended") {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white">
@@ -236,7 +239,6 @@ export default function LivePvPBoard({ params }) {
     );
   }
 
-  // 4. Live Game Phase
   const currentQ = matchData.questions[currentQIndex];
 
   return (

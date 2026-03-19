@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import dbConnect from "@/lib/db"; // <-- Updated name to match your file
+import dbConnect from "@/lib/db"; 
 import Match from "@/models/Match";
 
 export async function GET(request, { params }) {
   try {
-    await dbConnect(); // <-- Updated function call
+    await dbConnect(); 
     
-    // Await the params object before extracting the ID (Next.js 15+ rule)
-    const { id } = await params;
+    // 🚨 FIX: Must extract 'matchId' because your folder is named [matchId]
+    const { matchId } = await params;
     
-    const match = await Match.findById(id).lean();
+    const match = await Match.findById(matchId).lean();
     
     if (!match) {
       return NextResponse.json({ success: false, error: "Arena not found." }, { status: 404 });
