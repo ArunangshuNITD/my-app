@@ -119,3 +119,30 @@ export async function submitMatchResults(matchId, userId, finalScore) {
     return { success: false, message: "Failed to record results" };
   }
 }
+// 3. Cancel Match Logic (Add this to your server actions)
+export async function cancelMatch(matchId) {
+  await connectDB();
+
+  try {
+    const match = await Match.findById(matchId);
+    
+    // Only cancel if it's still waiting
+    if (match && match.status === "waiting") {
+      match.status = "cancelled";
+      await match.save();
+      return { success: true, message: "Match cancelled due to timeout." };
+    }
+    
+    return { success: false, message: "Match already started or not found." };
+  } catch (error) {
+    console.error("Failed to cancel match:", error);
+    return { success: false, message: "Server error." };
+  }
+}
+
+// Add this quick helper function to check status during polling
+export async function checkMatchStatus(matchId) {
+  await connectDB();
+  const match = await Match.findById(matchId).select('status');
+  return match ? match.status : null;
+}

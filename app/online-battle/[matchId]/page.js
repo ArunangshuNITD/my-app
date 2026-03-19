@@ -3,8 +3,9 @@ import { useEffect, useState, use } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import PvPTimer from "@/components/PvPTimer";
-import { submitMatchResults } from "@/app/actions/pvpActions"; 
-import { Loader2, Swords, X } from "lucide-react";
+// Make sure to add cancelMatch to your pvpActions!
+import { submitMatchResults, cancelMatch } from "@/app/actions/pvpActions"; 
+import { Loader2, Swords, X, Clock } from "lucide-react";
 
 export default function LivePvPBoard({ params }) {
   const resolvedParams = use(params);
@@ -19,34 +20,41 @@ export default function LivePvPBoard({ params }) {
   const [myScore, setMyScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
   
-  const [gameStatus, setGameStatus] = useState("waiting"); 
+  const [gameStatus, setGameStatus] = useState("loading"); // changed default to loading
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // 60 Second timeout timer
+  const [timeLeft, setTimeLeft] = useState(60);
 
+  // 1. Fetch Match Data
   useEffect(() => {
     const fetchMatch = async () => {
       try {
         const res = await fetch(`/api/matches/${matchId}`); 
         
-        // 🚨 CRITICAL FIX: Prevent "Unexpected token '<'" JSON crash
         const contentType = res.headers.get("content-type");
         if (!res.ok || !contentType || !contentType.includes("application/json")) {
-          const errorText = await res.text();
-          console.error("Server returned non-JSON response (Likely 404/500 HTML):", errorText);
           alert("Server Error: Could not connect to the arena.");
           router.push('/online-battle');
-          return; // Exit early before trying to parse JSON
+          return; 
         }
 
         const data = await res.json();
         
-        // Safety check to prevent UI crash
         if (data.success && data.match) {
           setMatchData(data.match); 
-          if (data.match.status === "playing") setGameStatus("playing");
+          
+          // Logic: If 2 players are already in the DB, skip waiting and show Ready button
+          if (data.match.status === "playing") {
+            setGameStatus("playing");
+          } else if (data.match.players.length === 2) {
+            setGameStatus("opponent_found");
+          } else {
+            setGameStatus("waiting");
+          }
         } else {
-          console.error("Match error:", data.error);
           alert("This arena does not exist or has expired.");
           router.push('/online-battle');
         }
@@ -56,24 +64,21 @@ export default function LivePvPBoard({ params }) {
     };
     
     fetchMatch();
+  }, [matchId, router]);
 
+  // 2. Supabase Real-time Subscriptions
+  useEffect(() => {
     const channel = supabase.channel(`match_${matchId}`);
 
     channel
       .on('broadcast', { event: 'score_update' }, (payload) => {
-        if (payload.userId !== userId) {
-          setOpponentScore(payload.score);
-        }
+        if (payload.userId !== userId) setOpponentScore(payload.score);
       })
       .on('broadcast', { event: 'player_joined' }, (payload) => {
-        if (payload.userId !== userId) {
-          setGameStatus("opponent_found"); 
-        }
+        if (payload.userId !== userId) setGameStatus("opponent_found"); 
       })
       .on('broadcast', { event: 'player_ready' }, (payload) => {
-        if (payload.userId !== userId) {
-          setOpponentReady(true);
-        }
+        if (payload.userId !== userId) setOpponentReady(true);
       })
       .on('broadcast', { event: 'player_canceled' }, (payload) => {
         if (payload.userId !== userId) {
@@ -83,17 +88,44 @@ export default function LivePvPBoard({ params }) {
       })
       .subscribe();
 
+    // Broadcast that we have arrived
     channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId } });
 
     return () => { supabase.removeChannel(channel); };
   }, [matchId, userId, router]);
 
+  // 3. Matchmaking 60-Second Timeout
+  useEffect(() => {
+    if (gameStatus !== "waiting") return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          handleTimeout();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [gameStatus]);
+
+  const handleTimeout = async () => {
+    await cancelMatch(matchId); // Cleans up the database
+    alert("Opponent not found. Please try again later!");
+    router.push('/online-battle');
+  };
+
+  // 4. Start game when BOTH are ready
   useEffect(() => {
     if (isReady && opponentReady) {
       setGameStatus("playing");
     }
   }, [isReady, opponentReady]);
 
+  // Actions
   const handleReady = () => {
     setIsReady(true);
     supabase.channel(`match_${matchId}`).send({
@@ -103,12 +135,13 @@ export default function LivePvPBoard({ params }) {
     });
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     supabase.channel(`match_${matchId}`).send({
       type: 'broadcast',
       event: 'player_canceled',
       payload: { userId }
     });
+    await cancelMatch(matchId); // Clean up DB if they leave early
     router.push('/online-battle');
   };
 
@@ -127,9 +160,7 @@ export default function LivePvPBoard({ params }) {
     }
   };
 
-  const handleTimeUp = () => {
-    moveToNextQuestion(myScore);
-  };
+  const handleTimeUp = () => moveToNextQuestion(myScore);
 
   const handleAnswer = (optionId) => {
     const isCorrect = matchData.questions[currentQIndex].correctAnswer === optionId;
@@ -150,8 +181,9 @@ export default function LivePvPBoard({ params }) {
   };
 
   // --- RENDERERS ---
-
-  if (!matchData) return <div className="min-h-screen bg-slate-950 flex justify-center items-center text-white"><Loader2 className="animate-spin w-10 h-10 text-blue-500" /></div>;
+  if (gameStatus === "loading" || !matchData) {
+    return <div className="min-h-screen bg-slate-950 flex justify-center items-center text-white"><Loader2 className="animate-spin w-10 h-10 text-blue-500" /></div>;
+  }
 
   if (gameStatus === "waiting") {
     return (
@@ -162,7 +194,14 @@ export default function LivePvPBoard({ params }) {
         </div>
         <h2 className="text-2xl font-bold text-slate-200">Searching for Opponent...</h2>
         <p className="text-slate-500 mt-2">Preparing the {matchData.category} arena.</p>
-        <button onClick={() => router.push('/online-battle')} className="mt-8 text-slate-400 hover:text-white transition">Cancel Matchmaking</button>
+        
+        {/* Added 60 second timer visualization */}
+        <div className="flex items-center gap-2 mt-6 px-4 py-2 bg-slate-900 border border-slate-700 rounded-full text-slate-300">
+          <Clock size={16} className="text-blue-400" />
+          <span>Timeout in: <span className="font-mono font-bold">{timeLeft}s</span></span>
+        </div>
+
+        <button onClick={handleCancel} className="mt-8 text-slate-400 hover:text-white transition">Cancel Matchmaking</button>
       </div>
     );
   }
@@ -175,7 +214,7 @@ export default function LivePvPBoard({ params }) {
             <Swords size={40} />
           </div>
           <h2 className="text-3xl font-black text-white mb-2">Match Found!</h2>
-          <p className="text-slate-400 mb-8">An opponent has joined the arena.</p>
+          <p className="text-slate-400 mb-8">Both players are in the arena.</p>
 
           <div className="flex flex-col gap-4">
             <button 
@@ -195,7 +234,7 @@ export default function LivePvPBoard({ params }) {
               disabled={isReady}
               className="w-full py-4 rounded-xl font-bold text-lg bg-slate-800 hover:bg-red-500/20 hover:text-red-400 text-slate-300 border border-slate-700 hover:border-red-500/50 transition-all flex justify-center items-center gap-2 disabled:opacity-50"
             >
-              <X size={20} /> Cancel Match
+              <X size={20} /> Leave Arena
             </button>
           </div>
 
@@ -251,6 +290,7 @@ export default function LivePvPBoard({ params }) {
     );
   }
 
+  // GAME PLAYING RENDERER
   const currentQ = matchData.questions[currentQIndex];
 
   return (
