@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, use } from "react"; // <-- Added 'use' here
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import PvPTimer from "@/components/PvPTimer";
@@ -7,7 +7,10 @@ import { submitMatchResults } from "@/app/actions/pvpActions";
 import { Loader2, Swords, X } from "lucide-react";
 
 export default function LivePvPBoard({ params }) {
-  const matchId = params.matchId;
+  // NEW: Unwrap the params Promise using React.use()
+  const resolvedParams = use(params);
+  const matchId = resolvedParams.matchId;
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const userId = searchParams.get("userId"); 
@@ -17,7 +20,7 @@ export default function LivePvPBoard({ params }) {
   const [myScore, setMyScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
   
-  // NEW: Expanded game states for the Ready Check
+  // Expanded game states for the Ready Check
   const [gameStatus, setGameStatus] = useState("waiting"); // waiting, opponent_found, playing, ended
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
@@ -66,7 +69,7 @@ export default function LivePvPBoard({ params }) {
     return () => { supabase.removeChannel(channel); };
   }, [matchId, userId, router]);
 
-  // NEW: Start the game instantly when both players are ready
+  // Start the game instantly when both players are ready
   useEffect(() => {
     if (isReady && opponentReady) {
       setGameStatus("playing");
