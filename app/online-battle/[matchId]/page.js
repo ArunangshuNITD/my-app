@@ -28,9 +28,20 @@ export default function LivePvPBoard({ params }) {
     const fetchMatch = async () => {
       try {
         const res = await fetch(`/api/matches/${matchId}`); 
+        
+        // 🚨 CRITICAL FIX: Prevent "Unexpected token '<'" JSON crash
+        const contentType = res.headers.get("content-type");
+        if (!res.ok || !contentType || !contentType.includes("application/json")) {
+          const errorText = await res.text();
+          console.error("Server returned non-JSON response (Likely 404/500 HTML):", errorText);
+          alert("Server Error: Could not connect to the arena.");
+          router.push('/online-battle');
+          return; // Exit early before trying to parse JSON
+        }
+
         const data = await res.json();
         
-        // 🚨 FIX: Safety check to prevent UI crash
+        // Safety check to prevent UI crash
         if (data.success && data.match) {
           setMatchData(data.match); 
           if (data.match.status === "playing") setGameStatus("playing");
@@ -43,6 +54,7 @@ export default function LivePvPBoard({ params }) {
         console.error("Failed to fetch match:", err);
       }
     };
+    
     fetchMatch();
 
     const channel = supabase.channel(`match_${matchId}`);
