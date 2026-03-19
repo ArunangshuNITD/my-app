@@ -25,7 +25,8 @@ my-app/
 │   │   ├── reviewActions.js
 |   |   ├── roadmapActions.js
 │   │   ├── skillProgressActions.js
-|   |   └── spaceRepititionActions.js
+|   |   ├──spaceRepititionActions.js
+|   |   └──userActivity.js
 │   ├── admin/
 │   │   └── page.js
 │   ├── api/
@@ -200,7 +201,17 @@ my-app/
 │   │       │   ├── reproduction.js
 │   │       │   └── structure.js
 │   │       ├── chemistry/
+|   |       ├── inorganic.js
+│   │       │   ├── organic.js
+│   │       │   └── physical.js
 │   │       └── physics/
+|   |        ├── electromagnetism.js
+│   │        ├── extendedmechanics.js
+│   │        ├── mechanics.js
+│   │        ├── modern.js
+│   │        ├── optics.js
+│   │        ├── thermal.js
+│   │        └── waves.js
 │   ├── db.js
 │   ├── supabase.js
 │   ├── surgePricing.js

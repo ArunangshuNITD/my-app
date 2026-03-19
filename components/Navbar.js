@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { FiSun, FiMoon, FiShoppingCart, FiMenu, FiX, FiZap } from "react-icons/fi"; 
-import AuthButton from "./Authbutton";
+import { FiSun, FiMoon, FiShoppingCart, FiMenu, FiX, FiZap, FiTarget } from "react-icons/fi"; 
+import AuthButton from "./Authbutton"; // Make sure path is correct
 import { useCart } from "@/context/CartContext";
 
 export default function Navbar() {
@@ -30,7 +30,12 @@ export default function Navbar() {
     { 
       name: "Bounty Board", 
       href: "/bounty-board", 
-      icon: <FiZap className="inline mr-1 text-amber-500" /> // Highlight the new feature
+      icon: <FiZap className="inline mr-1 text-amber-500" /> 
+    },
+    { 
+      name: "Online Battle", 
+      href: "/online-battle", 
+      icon: <FiTarget className="inline mr-1 text-blue-500 animate-pulse" /> 
     },
     { name: "Blogs", href: "/blogs" },
     { name: "Store", href: "/store" },
@@ -86,18 +91,18 @@ export default function Navbar() {
             </svg>
           </div>
 
-          <span className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">
+          <span className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white flex items-center">
             Mentor<span className="text-indigo-600 dark:text-lime-400">Connect</span>
           </span>
         </Link>
 
         {/* 2. Desktop Navigation */}
-        <div className="hidden items-center gap-6 lg:gap-8 md:flex">
+        <div className="hidden items-center gap-4 lg:gap-6 xl:gap-8 md:flex">
             {navLinks.map((link) => (
               <Link
                 key={link.name}
                 href={link.href}
-                className={`text-sm font-medium transition-colors flex items-center
+                className={`text-sm lg:text-base font-medium transition-colors flex items-center whitespace-nowrap
                   ${pathname === link.href 
                     ? "text-indigo-600 dark:text-lime-400" 
                     : "text-zinc-600 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-lime-400"
@@ -110,7 +115,7 @@ export default function Navbar() {
         </div>
 
         {/* 3. Actions (Desktop) */}
-        <div className="hidden items-center gap-4 md:flex">
+        <div className="hidden items-center gap-4 md:flex shrink-0">
           <CartIcon />
           <ThemeToggle />
           <div className="h-6 w-px bg-zinc-200 dark:bg-lime-900/30"></div>
