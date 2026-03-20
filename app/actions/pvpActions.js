@@ -1,3 +1,4 @@
+// app/actions/pvpActions.js
 "use server";
 
 import connectDB from "@/lib/db";
@@ -23,18 +24,20 @@ async function generatePvPQuestions(mode, category) {
     Provide 2 Easy, 3 Medium, and 2 Hard questions.
     
     Return ONLY a raw JSON array of objects (no markdown, no backticks). Structure each object exactly like this:
-    {
-      "text": "Question text here",
-      "subject": "Physics/Chemistry/Math/Biology",
-      "difficulty": "easy/medium/hard",
-      "options": [
-        {"id": "A", "text": "Option 1"},
-        {"id": "B", "text": "Option 2"},
-        {"id": "C", "text": "Option 3"},
-        {"id": "D", "text": "Option 4"}
-      ],
-      "correctAnswer": "A"
-    }
+    [
+      {
+        "text": "Question text here",
+        "subject": "Physics/Chemistry/Math/Biology",
+        "difficulty": "easy/medium/hard",
+        "options": [
+          {"id": "A", "text": "Option 1"},
+          {"id": "B", "text": "Option 2"},
+          {"id": "C", "text": "Option 3"},
+          {"id": "D", "text": "Option 4"}
+        ],
+        "correctAnswer": "A"
+      }
+    ]
   `;
 
   try {
@@ -44,40 +47,61 @@ async function generatePvPQuestions(mode, category) {
     return JSON.parse(jsonStr);
   } catch (error) {
     console.error("AI Generation failed:", error);
-    return null; // Handle fallback in production
+    return null; 
   }
 }
 
-// 2. Matchmaking Logic
+// 2. FIXED Matchmaking Logic
 export async function findOrStartMatch(userId, mode, category) {
   await connectDB();
 
-  // Try to find a waiting match with the exact same mode and category
-  let match = await Match.findOne({ status: "waiting", mode, category });
+  // 1. Atomically try to join an existing waiting match.
+  // The "$ne: userId" ensures a player doesn't join a match they created.
+  let match = await Match.findOneAndUpdate(
+    { 
+      status: "waiting", 
+      mode, 
+      category,
+      "players.userId": { $ne: userId } 
+    },
+    { 
+      $push: { players: { userId, score: 0 } },
+      $set: { status: "playing" } // Game starts!
+    },
+    { new: true }
+  );
 
   if (match) {
-    // Join existing match
-    match.players.push({ userId, score: 0 });
-    match.status = "playing"; // Game starts!
-    await match.save();
+    // Successfully joined an existing match!
     return { success: true, matchId: match._id.toString(), isHost: false };
-  } else {
-    // Create new match and generate questions
-    const questions = await generatePvPQuestions(mode, category);
-    if (!questions) return { success: false, message: "Failed to generate arena." };
-
-    match = await Match.create({
-      mode,
-      category,
-      status: "waiting",
-      players: [{ userId, score: 0 }],
-      questions
-    });
-    return { success: true, matchId: match._id.toString(), isHost: true };
   }
-}
-// ... existing findOrStartMatch and AI generation code ...
 
+  // 2. If no match is found, CREATE the match FIRST so it exists in the DB.
+  match = await Match.create({
+    mode,
+    category,
+    status: "waiting",
+    players: [{ userId, score: 0 }],
+    questions: [] // Empty for now, we'll fill this in after creation
+  });
+
+  // 3. NOW generate the questions (while the match is visible to Player 2)
+  const questions = await generatePvPQuestions(mode, category);
+  
+  if (!questions) {
+    // If AI fails, delete the empty match so it doesn't get stuck
+    await Match.findByIdAndDelete(match._id);
+    return { success: false, message: "Failed to generate arena." };
+  }
+
+  // 4. Update the match with the generated questions
+  match.questions = questions;
+  await match.save();
+
+  return { success: true, matchId: match._id.toString(), isHost: true };
+}
+
+// 3. Submit Results
 export async function submitMatchResults(matchId, userId, finalScore) {
   await connectDB();
 
@@ -85,14 +109,11 @@ export async function submitMatchResults(matchId, userId, finalScore) {
     const match = await Match.findById(matchId);
     if (!match) return { success: false, message: "Match not found" };
 
-    // Find the current player and update their score
     const playerIndex = match.players.findIndex(p => p.userId === userId);
     if (playerIndex > -1) {
       match.players[playerIndex].score = finalScore;
     }
 
-    // Check if both players have submitted their final scores
-    // (Assuming 2 players max for now)
     const bothPlayersFinished = match.players.every(p => p.score > 0) || match.status === "completed";
 
     if (bothPlayersFinished) {
@@ -101,7 +122,6 @@ export async function submitMatchResults(matchId, userId, finalScore) {
       const player1 = match.players[0];
       const player2 = match.players[1];
 
-      // Determine Winner
       if (player1.score > player2.score) {
         match.winner = player1.userId;
       } else if (player2.score > player1.score) {
@@ -119,14 +139,14 @@ export async function submitMatchResults(matchId, userId, finalScore) {
     return { success: false, message: "Failed to record results" };
   }
 }
-// 3. Cancel Match Logic (Add this to your server actions)
+
+// 4. Cancel Match
 export async function cancelMatch(matchId) {
   await connectDB();
 
   try {
     const match = await Match.findById(matchId);
     
-    // Only cancel if it's still waiting
     if (match && match.status === "waiting") {
       match.status = "cancelled";
       await match.save();
@@ -140,7 +160,7 @@ export async function cancelMatch(matchId) {
   }
 }
 
-// Add this quick helper function to check status during polling
+// 5. Check Status
 export async function checkMatchStatus(matchId) {
   await connectDB();
   const match = await Match.findById(matchId).select('status');
