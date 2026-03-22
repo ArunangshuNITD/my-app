@@ -3,7 +3,6 @@ import { useEffect, useState, use } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import PvPTimer from "@/components/PvPTimer";
-// Make sure to add cancelMatch to your pvpActions!
 import { submitMatchResults, cancelMatch } from "@/app/actions/pvpActions"; 
 import { Loader2, Swords, X, Clock } from "lucide-react";
 
@@ -14,13 +13,15 @@ export default function LivePvPBoard({ params }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const userId = searchParams.get("userId"); 
+  const userName = searchParams.get("userName") || "You"; 
 
   const [matchData, setMatchData] = useState(null);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [myScore, setMyScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
   
-  const [gameStatus, setGameStatus] = useState("loading"); // changed default to loading
+  const [gameStatus, setGameStatus] = useState("loading"); 
+  const [opponentName, setOpponentName] = useState("Opponent");
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,10 +47,14 @@ export default function LivePvPBoard({ params }) {
         if (data.success && data.match) {
           setMatchData(data.match); 
           
-          // Logic: If 2 players are already in the DB, skip waiting and show Ready button
           if (data.match.status === "playing") {
             setGameStatus("playing");
-          } else if (data.match.players.length === 2) {
+          } else if (data.match.player2 && data.match.player2.userId) {
+            // Identify the opponent's name from the DB
+            const oppName = data.match.player1.userId === userId 
+              ? data.match.player2.name 
+              : data.match.player1.name;
+            setOpponentName(oppName || "Opponent");
             setGameStatus("opponent_found");
           } else {
             setGameStatus("waiting");
@@ -64,7 +69,7 @@ export default function LivePvPBoard({ params }) {
     };
     
     fetchMatch();
-  }, [matchId, router]);
+  }, [matchId, userId, router]);
 
   // 2. Supabase Real-time Subscriptions
   useEffect(() => {
@@ -75,24 +80,27 @@ export default function LivePvPBoard({ params }) {
         if (payload.userId !== userId) setOpponentScore(payload.score);
       })
       .on('broadcast', { event: 'player_joined' }, (payload) => {
-        if (payload.userId !== userId) setGameStatus("opponent_found"); 
+        if (payload.userId !== userId) {
+          setOpponentName(payload.userName);
+          setGameStatus("opponent_found"); 
+        }
       })
       .on('broadcast', { event: 'player_ready' }, (payload) => {
         if (payload.userId !== userId) setOpponentReady(true);
       })
       .on('broadcast', { event: 'player_canceled' }, (payload) => {
         if (payload.userId !== userId) {
-          alert("Your opponent canceled the match.");
+          alert(`${opponentName} canceled the match.`);
           router.push('/online-battle');
         }
       })
       .subscribe();
 
-    // Broadcast that we have arrived
-    channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId } });
+    // Broadcast that we have arrived, including our name
+    channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId, userName } });
 
     return () => { supabase.removeChannel(channel); };
-  }, [matchId, userId, router]);
+  }, [matchId, userId, userName, opponentName, router]);
 
   // 3. Matchmaking 60-Second Timeout
   useEffect(() => {
@@ -141,7 +149,7 @@ export default function LivePvPBoard({ params }) {
       event: 'player_canceled',
       payload: { userId }
     });
-    await cancelMatch(matchId); // Clean up DB if they leave early
+    await cancelMatch(matchId); 
     router.push('/online-battle');
   };
 
@@ -195,7 +203,6 @@ export default function LivePvPBoard({ params }) {
         <h2 className="text-2xl font-bold text-slate-200">Searching for Opponent...</h2>
         <p className="text-slate-500 mt-2">Preparing the {matchData.category} arena.</p>
         
-        {/* Added 60 second timer visualization */}
         <div className="flex items-center gap-2 mt-6 px-4 py-2 bg-slate-900 border border-slate-700 rounded-full text-slate-300">
           <Clock size={16} className="text-blue-400" />
           <span>Timeout in: <span className="font-mono font-bold">{timeLeft}s</span></span>
@@ -214,7 +221,12 @@ export default function LivePvPBoard({ params }) {
             <Swords size={40} />
           </div>
           <h2 className="text-3xl font-black text-white mb-2">Match Found!</h2>
-          <p className="text-slate-400 mb-8">Both players are in the arena.</p>
+          
+          <div className="text-lg font-bold mb-8 flex justify-center items-center gap-3">
+             <span className="text-blue-400">{userName}</span>
+             <span className="text-slate-500">vs</span>
+             <span className="text-red-400">{opponentName}</span>
+          </div>
 
           <div className="flex flex-col gap-4">
             <button 
@@ -240,7 +252,7 @@ export default function LivePvPBoard({ params }) {
 
           {opponentReady && (
             <p className="mt-6 text-green-400 font-medium animate-pulse">
-              Opponent is Ready!
+              {opponentName} is Ready!
             </p>
           )}
         </div>
@@ -262,12 +274,12 @@ export default function LivePvPBoard({ params }) {
             
             <div className="flex justify-around items-center mb-8">
                <div className="text-center">
-                 <p className="text-slate-400 text-sm mb-1">Your Score</p>
+                 <p className="text-slate-400 text-sm mb-1">{userName}</p>
                  <p className="text-4xl font-bold text-blue-400">{myScore}</p>
                </div>
                <div className="h-16 w-px bg-slate-700"></div>
                <div className="text-center">
-                 <p className="text-slate-400 text-sm mb-1">Opponent</p>
+                 <p className="text-slate-400 text-sm mb-1">{opponentName}</p>
                  <p className="text-4xl font-bold text-red-400">{opponentScore}</p>
                </div>
             </div>
@@ -302,7 +314,7 @@ export default function LivePvPBoard({ params }) {
              <span className="font-bold text-blue-400">P1</span>
           </div>
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">You</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{userName}</p>
             <p className="text-2xl font-black text-blue-400 leading-none">{myScore}</p>
           </div>
         </div>
@@ -311,7 +323,7 @@ export default function LivePvPBoard({ params }) {
         
         <div className="flex items-center gap-4 text-right">
           <div>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Opponent</p>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{opponentName}</p>
             <p className="text-2xl font-black text-red-400 leading-none">{opponentScore}</p>
           </div>
           <div className="w-12 h-12 rounded-full bg-red-600/20 flex items-center justify-center border border-red-500/50">

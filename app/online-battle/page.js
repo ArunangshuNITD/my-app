@@ -9,17 +9,21 @@ export default function OnlineBattleLobby() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("subject"); 
   const [category, setCategory] = useState("JEE Physics");
+  
+  // Name state
+  const [userName, setUserName] = useState("");
 
   // Simulated User ID (Replace with your actual Auth ID later)
-  const userId = "user_" + Math.floor(Math.random() * 10000); 
+  const [userId] = useState(() => "user_" + Math.floor(Math.random() * 10000));
 
   const handleFindMatch = async () => {
+    if (!userName.trim()) return alert("Please enter your battle name!");
+
     setLoading(true);
-    const res = await findOrStartMatch(userId, mode, category);
+    const res = await findOrStartMatch(userId, userName, mode, category);
     
     if (res.success) {
-      // Redirecting to the new online-battle route!
-      router.push(`/online-battle/${res.matchId}?userId=${userId}`);
+      router.push(`/online-battle/${res.matchId}?userId=${userId}&userName=${encodeURIComponent(userName)}`);
     } else {
       alert("Matchmaking failed! Servers might be busy.");
       setLoading(false);
@@ -56,6 +60,18 @@ export default function OnlineBattleLobby() {
           <h2 className="text-2xl font-bold text-white text-center mb-6">Enter the Arena</h2>
 
           <div className="space-y-5 mb-8">
+            {/* Name Input */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-400 mb-2 uppercase tracking-wider">Your Name</label>
+              <input 
+                type="text" 
+                placeholder="Enter your battle name..."
+                value={userName} 
+                onChange={(e) => setUserName(e.target.value)}
+                className="w-full bg-slate-950 text-white p-4 rounded-xl border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+              />
+            </div>
+
             <div>
               <label className="block text-sm font-semibold text-slate-400 mb-2 uppercase tracking-wider">Battle Mode</label>
               <select 
@@ -74,7 +90,7 @@ export default function OnlineBattleLobby() {
                 <select 
                   value={category} 
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-slate-950 text-white p-4 rounded-xl border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                  className="w-full bg-slate-950 text-white p-4 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition"
                 >
                   <option value="JEE Physics">JEE Physics</option>
                   <option value="JEE Chemistry">JEE Chemistry</option>
@@ -85,7 +101,7 @@ export default function OnlineBattleLobby() {
                 <select 
                   value={category} 
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-slate-950 text-white p-4 rounded-xl border border-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                  className="w-full bg-slate-950 text-white p-4 rounded-xl border border-slate-700 focus:border-blue-500 outline-none transition"
                 >
                   <option value="JEE">JEE Mains Full Mock</option>
                   <option value="NEET">NEET Full Mock</option>

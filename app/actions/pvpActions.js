@@ -1,4 +1,3 @@
-// app/actions/pvpActions.js
 "use server";
 
 import connectDB from "@/lib/db";
@@ -52,21 +51,20 @@ async function generatePvPQuestions(mode, category) {
 }
 
 // 2. FIXED Matchmaking Logic
-export async function findOrStartMatch(userId, mode, category) {
+export async function findOrStartMatch(userId, userName, mode, category) {
   await connectDB();
 
   // 1. Atomically try to join an existing waiting match.
-  // The "$ne: userId" ensures a player doesn't join a match they created.
   let match = await Match.findOneAndUpdate(
     { 
       status: "waiting", 
       mode, 
       category,
-      "players.userId": { $ne: userId } 
+      "player2.userId": null, 
+      "player1.userId": { $ne: userId } // Prevent joining your own match
     },
     { 
-      $push: { players: { userId, score: 0 } },
-      $set: { status: "playing" } // Game starts!
+      $set: { player2: { userId, name: userName, score: 0 } }
     },
     { new: true }
   );
@@ -76,27 +74,22 @@ export async function findOrStartMatch(userId, mode, category) {
     return { success: true, matchId: match._id.toString(), isHost: false };
   }
 
-  // 2. If no match is found, CREATE the match FIRST so it exists in the DB.
+  // 2. If no match is found, generate the questions FIRST
+  const questions = await generatePvPQuestions(mode, category);
+  
+  if (!questions) {
+    return { success: false, message: "Failed to generate arena." };
+  }
+
+  // 3. Create the match with the generated questions ready to go
   match = await Match.create({
     mode,
     category,
     status: "waiting",
-    players: [{ userId, score: 0 }],
-    questions: [] // Empty for now, we'll fill this in after creation
+    player1: { userId, name: userName, score: 0 },
+    player2: { userId: null, name: null, score: 0 }, // Waiting for P2
+    questions: questions
   });
-
-  // 3. NOW generate the questions (while the match is visible to Player 2)
-  const questions = await generatePvPQuestions(mode, category);
-  
-  if (!questions) {
-    // If AI fails, delete the empty match so it doesn't get stuck
-    await Match.findByIdAndDelete(match._id);
-    return { success: false, message: "Failed to generate arena." };
-  }
-
-  // 4. Update the match with the generated questions
-  match.questions = questions;
-  await match.save();
 
   return { success: true, matchId: match._id.toString(), isHost: true };
 }
@@ -109,23 +102,26 @@ export async function submitMatchResults(matchId, userId, finalScore) {
     const match = await Match.findById(matchId);
     if (!match) return { success: false, message: "Match not found" };
 
-    const playerIndex = match.players.findIndex(p => p.userId === userId);
-    if (playerIndex > -1) {
-      match.players[playerIndex].score = finalScore;
+    // Update the correct player's score
+    if (match.player1.userId === userId) {
+        match.player1.score = finalScore;
+    } else if (match.player2.userId === userId) {
+        match.player2.score = finalScore;
     }
 
-    const bothPlayersFinished = match.players.every(p => p.score > 0) || match.status === "completed";
+    // Since we don't have a strict "completed" flag per player yet, 
+    // we'll assume the match ends when both have scores > 0, or just let the DB record it.
+    // For a robust system, you might want to add a `finished: boolean` to the player object later.
+    const p1Finished = match.player1.score > 0 || finalScore === 0; // Simple fallback
+    const p2Finished = match.player2.score > 0;
 
-    if (bothPlayersFinished) {
+    if (p1Finished && p2Finished && match.status !== "completed") {
       match.status = "completed";
       
-      const player1 = match.players[0];
-      const player2 = match.players[1];
-
-      if (player1.score > player2.score) {
-        match.winner = player1.userId;
-      } else if (player2.score > player1.score) {
-        match.winner = player2.userId;
+      if (match.player1.score > match.player2.score) {
+        match.winner = match.player1.userId;
+      } else if (match.player2.score > match.player1.score) {
+        match.winner = match.player2.userId;
       } else {
         match.winner = "draw";
       }

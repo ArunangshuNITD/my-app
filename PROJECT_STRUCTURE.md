@@ -1,9 +1,13 @@
 my-app/
+├── .agents/
 ├── .env.local
 ├── .git/
 ├── .gitattributes
 ├── .gitignore
 ├── .next/
+├── .windsurf/
+│   └── skills/
+│       └── supabase-postgres-best-practices
 ├── PROJECT_STRUCTURE.md
 ├── README.md
 ├── Todo.md
@@ -22,11 +26,13 @@ my-app/
 │   │   ├── getMentors.js
 │   │   ├── messageAction.js
 │   │   ├── productActions.js
+│   │   ├── pvpActions.js
+│   │   ├── quizActions.js
 │   │   ├── reviewActions.js
-|   |   ├── roadmapActions.js
-│   │   ├── skillProgressActions.js
-|   |   ├──spaceRepititionActions.js
-|   |   └──userActivity.js
+│   │   ├── roadmapActions.js
+│   │   ├── skillTreeActions.js
+│   │   ├── spaceRepititionActions.js
+│   │   └── userActivity.js
 │   ├── admin/
 │   │   └── page.js
 │   ├── api/
@@ -43,6 +49,8 @@ my-app/
 │   │   │   └── update/
 │   │   │       └── route.js
 │   │   ├── chat/
+│   │   │   └── route.js
+│   │   ├── matches/
 │   │   │   └── route.js
 │   │   ├── mentors/
 │   │   │   └── route.js
@@ -114,6 +122,10 @@ my-app/
 │   │   ├── layout.js
 │   │   └── page.js
 │   ├── not-found.js
+│   ├── online-battle/
+│   │   ├── [matchId]/
+│   │   │   └── page.js
+│   │   └── page.js
 │   ├── page.js
 │   ├── pricing/
 │   │   └── page.js
@@ -148,11 +160,13 @@ my-app/
 │   ├── MessageMentorButton.js
 │   ├── MessagesClientlayout.js
 │   ├── Navbar.js
-|   ├── NeedsReviewQueue.js
-|   ├── ProgressRing.js
+│   ├── NeedsReviewQueue.js
+│   ├── ProgressRing.js
 │   ├── Providers.js
+│   ├── PvPTimer.js
 │   ├── RateMentorButton.js
 │   ├── ReviewModal.js
+│   ├── RoadmapTodo.js
 │   ├── SkillTree/
 │   │   ├── CustomNode.js
 │   │   ├── QuizModel.js
@@ -190,28 +204,8 @@ my-app/
 │   │   │       └── waves.js
 │   │   └── neet/
 │   │       ├── biology/
-│   │       │   ├── biotech.js
-│   │       │   ├── cell.js
-│   │       │   ├── diversity.js
-│   │       │   ├── ecology.js
-│   │       │   ├── genetics.js
-│   │       │   ├── human_physiology.js
-│   │       │   ├── human_welfare.js
-│   │       │   ├── plant_physiology.js
-│   │       │   ├── reproduction.js
-│   │       │   └── structure.js
 │   │       ├── chemistry/
-|   |       ├── inorganic.js
-│   │       │   ├── organic.js
-│   │       │   └── physical.js
 │   │       └── physics/
-|   |        ├── electromagnetism.js
-│   │        ├── extendedmechanics.js
-│   │        ├── mechanics.js
-│   │        ├── modern.js
-│   │        ├── optics.js
-│   │        ├── thermal.js
-│   │        └── waves.js
 │   ├── db.js
 │   ├── supabase.js
 │   ├── surgePricing.js
@@ -222,6 +216,7 @@ my-app/
 │   ├── Bounty.js
 │   ├── Contact.js
 │   ├── Conversation.js
+│   ├── Match.js
 │   ├── Mentor.js
 │   ├── Message.js
 │   ├── Order.js
@@ -241,4 +236,5 @@ my-app/
 │   ├── uploads/
 │   ├── vercel.svg
 │   └── window.svg
+├── skills-lock.json
 └── tailwind.config.js
