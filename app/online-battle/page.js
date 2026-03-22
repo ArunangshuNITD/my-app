@@ -10,10 +10,7 @@ export default function OnlineBattleLobby() {
   const [mode, setMode] = useState("subject"); 
   const [category, setCategory] = useState("JEE Physics");
   
-  // Name state
   const [userName, setUserName] = useState("");
-
-  // Simulated User ID (Replace with your actual Auth ID later)
   const [userId] = useState(() => "user_" + Math.floor(Math.random() * 10000));
 
   const handleFindMatch = async () => {
@@ -34,7 +31,6 @@ export default function OnlineBattleLobby() {
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
       <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
         
-        {/* Left Side: Hero Info */}
         <div className="text-left space-y-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-medium text-sm">
             <Globe size={16} /> Live Multiplayer
@@ -47,7 +43,6 @@ export default function OnlineBattleLobby() {
           </p>
         </div>
 
-        {/* Right Side: Matchmaking Card */}
         <div className="bg-slate-900 border border-slate-700 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
           <div className="absolute -top-20 -right-20 w-40 h-40 bg-blue-600/20 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -60,7 +55,6 @@ export default function OnlineBattleLobby() {
           <h2 className="text-2xl font-bold text-white text-center mb-6">Enter the Arena</h2>
 
           <div className="space-y-5 mb-8">
-            {/* Name Input */}
             <div>
               <label className="block text-sm font-semibold text-slate-400 mb-2 uppercase tracking-wider">Your Name</label>
               <input 

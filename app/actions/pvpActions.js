@@ -6,28 +6,25 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// 1. Generate Questions dynamically based on Mode
+// 1. Generate Questions dynamically
 async function generatePvPQuestions(mode, category) {
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   
-  let promptContext = "";
-  if (mode === "exam") {
-    promptContext = `Generate a balanced mix of 7 questions for the entire ${category} syllabus (Physics, Chemistry, and Math/Biology).`;
-  } else {
-    promptContext = `Generate 7 questions specifically for ${category}. Focus strictly on this subject.`;
-  }
+  let promptContext = mode === "exam" 
+    ? `Generate a balanced mix of 7 questions for the entire ${category} syllabus (Physics, Chemistry, and Math/Biology).`
+    : `Generate 7 questions specifically for ${category}. Focus strictly on this subject.`;
 
   const prompt = `
     You are an expert examiner for Indian competitive exams.
     ${promptContext}
     Provide 2 Easy, 3 Medium, and 2 Hard questions.
     
-    Return ONLY a raw JSON array of objects (no markdown, no backticks). Structure each object exactly like this:
+    Return ONLY a raw JSON array of objects (no markdown, no backticks). Structure exactly like this:
     [
       {
         "text": "Question text here",
-        "subject": "Physics/Chemistry/Math/Biology",
-        "difficulty": "easy/medium/hard",
+        "subject": "Physics",
+        "difficulty": "easy",
         "options": [
           {"id": "A", "text": "Option 1"},
           {"id": "B", "text": "Option 2"},
@@ -50,11 +47,11 @@ async function generatePvPQuestions(mode, category) {
   }
 }
 
-// 2. FIXED Matchmaking Logic
+// 2. Matchmaking Logic
 export async function findOrStartMatch(userId, userName, mode, category) {
   await connectDB();
 
-  // 1. Atomically try to join an existing waiting match.
+  // Atomically try to join an existing waiting match.
   let match = await Match.findOneAndUpdate(
     { 
       status: "waiting", 
@@ -64,30 +61,33 @@ export async function findOrStartMatch(userId, userName, mode, category) {
       "player1.userId": { $ne: userId } // Prevent joining your own match
     },
     { 
-      $set: { player2: { userId, name: userName, score: 0 } }
+      $set: { 
+        "player2.userId": userId, 
+        "player2.name": userName, 
+        "player2.score": 0 
+      } 
     },
     { new: true }
   );
 
   if (match) {
-    // Successfully joined an existing match!
     return { success: true, matchId: match._id.toString(), isHost: false };
   }
 
-  // 2. If no match is found, generate the questions FIRST
+  // Generate questions if no match found
   const questions = await generatePvPQuestions(mode, category);
   
   if (!questions) {
     return { success: false, message: "Failed to generate arena." };
   }
 
-  // 3. Create the match with the generated questions ready to go
+  // Create new match
   match = await Match.create({
     mode,
     category,
     status: "waiting",
     player1: { userId, name: userName, score: 0 },
-    player2: { userId: null, name: null, score: 0 }, // Waiting for P2
+    player2: { userId: null, name: null, score: 0 },
     questions: questions
   });
 
@@ -102,17 +102,14 @@ export async function submitMatchResults(matchId, userId, finalScore) {
     const match = await Match.findById(matchId);
     if (!match) return { success: false, message: "Match not found" };
 
-    // Update the correct player's score
+    // Update specific player
     if (match.player1.userId === userId) {
         match.player1.score = finalScore;
     } else if (match.player2.userId === userId) {
         match.player2.score = finalScore;
     }
 
-    // Since we don't have a strict "completed" flag per player yet, 
-    // we'll assume the match ends when both have scores > 0, or just let the DB record it.
-    // For a robust system, you might want to add a `finished: boolean` to the player object later.
-    const p1Finished = match.player1.score > 0 || finalScore === 0; // Simple fallback
+    const p1Finished = match.player1.score > 0 || finalScore === 0;
     const p2Finished = match.player2.score > 0;
 
     if (p1Finished && p2Finished && match.status !== "completed") {
@@ -127,6 +124,10 @@ export async function submitMatchResults(matchId, userId, finalScore) {
       }
     }
 
+    // Force Mongoose to recognize the nested update
+    match.markModified('player1');
+    match.markModified('player2');
+    
     await match.save();
     return { success: true, winner: match.winner };
     
@@ -139,19 +140,15 @@ export async function submitMatchResults(matchId, userId, finalScore) {
 // 4. Cancel Match
 export async function cancelMatch(matchId) {
   await connectDB();
-
   try {
     const match = await Match.findById(matchId);
-    
     if (match && match.status === "waiting") {
       match.status = "cancelled";
       await match.save();
-      return { success: true, message: "Match cancelled due to timeout." };
+      return { success: true, message: "Match cancelled." };
     }
-    
-    return { success: false, message: "Match already started or not found." };
+    return { success: false, message: "Match started or not found." };
   } catch (error) {
-    console.error("Failed to cancel match:", error);
     return { success: false, message: "Server error." };
   }
 }

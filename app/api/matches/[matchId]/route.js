@@ -1,6 +1,5 @@
-// app/api/matches/[matchId]/route.js
 import { NextResponse } from "next/server";
-import dbConnect from "@/lib/db"; 
+import dbConnect from "@/lib/db";
 import Match from "@/models/Match";
 
 export async function GET(request, { params }) {

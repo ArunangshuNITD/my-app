@@ -26,10 +26,8 @@ export default function LivePvPBoard({ params }) {
   const [opponentReady, setOpponentReady] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // 60 Second timeout timer
   const [timeLeft, setTimeLeft] = useState(60);
 
-  // 1. Fetch Match Data
   useEffect(() => {
     const fetchMatch = async () => {
       try {
@@ -50,7 +48,6 @@ export default function LivePvPBoard({ params }) {
           if (data.match.status === "playing") {
             setGameStatus("playing");
           } else if (data.match.player2 && data.match.player2.userId) {
-            // Identify the opponent's name from the DB
             const oppName = data.match.player1.userId === userId 
               ? data.match.player2.name 
               : data.match.player1.name;
@@ -71,7 +68,6 @@ export default function LivePvPBoard({ params }) {
     fetchMatch();
   }, [matchId, userId, router]);
 
-  // 2. Supabase Real-time Subscriptions
   useEffect(() => {
     const channel = supabase.channel(`match_${matchId}`);
 
@@ -96,13 +92,11 @@ export default function LivePvPBoard({ params }) {
       })
       .subscribe();
 
-    // Broadcast that we have arrived, including our name
     channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId, userName } });
 
     return () => { supabase.removeChannel(channel); };
   }, [matchId, userId, userName, opponentName, router]);
 
-  // 3. Matchmaking 60-Second Timeout
   useEffect(() => {
     if (gameStatus !== "waiting") return;
 
@@ -121,19 +115,17 @@ export default function LivePvPBoard({ params }) {
   }, [gameStatus]);
 
   const handleTimeout = async () => {
-    await cancelMatch(matchId); // Cleans up the database
+    await cancelMatch(matchId); 
     alert("Opponent not found. Please try again later!");
     router.push('/online-battle');
   };
 
-  // 4. Start game when BOTH are ready
   useEffect(() => {
     if (isReady && opponentReady) {
       setGameStatus("playing");
     }
   }, [isReady, opponentReady]);
 
-  // Actions
   const handleReady = () => {
     setIsReady(true);
     supabase.channel(`match_${matchId}`).send({
@@ -188,7 +180,6 @@ export default function LivePvPBoard({ params }) {
     moveToNextQuestion(newScore);
   };
 
-  // --- RENDERERS ---
   if (gameStatus === "loading" || !matchData) {
     return <div className="min-h-screen bg-slate-950 flex justify-center items-center text-white"><Loader2 className="animate-spin w-10 h-10 text-blue-500" /></div>;
   }
@@ -302,12 +293,10 @@ export default function LivePvPBoard({ params }) {
     );
   }
 
-  // GAME PLAYING RENDERER
   const currentQ = matchData.questions[currentQIndex];
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 pt-10 text-white">
-      {/* Live Scoreboard */}
       <div className="max-w-4xl mx-auto flex justify-between items-center bg-slate-900/50 backdrop-blur p-4 rounded-2xl border border-slate-700/50 mb-8 sticky top-4 z-10">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center border border-blue-500/50">
@@ -332,9 +321,7 @@ export default function LivePvPBoard({ params }) {
         </div>
       </div>
 
-      {/* Question Area */}
       <div className="max-w-4xl mx-auto bg-slate-900 border border-slate-700 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-        {/* Progress bar background */}
         <div className="absolute top-0 left-0 h-1 bg-slate-800 w-full">
            <div 
              className="h-full bg-blue-500 transition-all duration-300" 
