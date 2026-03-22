@@ -1,6 +1,6 @@
 "use server";
 
-import connectDB from "@/lib/db";
+import connectDB from "@/lib/db"; // Ensure your path is correct
 import Match from "@/models/Match";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -51,93 +51,133 @@ async function generatePvPQuestions(mode, category) {
 export async function findOrStartMatch(userId, userName, mode, category) {
   await connectDB();
 
-  // Atomically try to join an existing waiting match.
   let match = await Match.findOneAndUpdate(
     { 
       status: "waiting", 
       mode, 
       category,
       "player2.userId": null, 
-      "player1.userId": { $ne: userId } // Prevent joining your own match
+      "player1.userId": { $ne: userId }
     },
     { 
       $set: { 
         "player2.userId": userId, 
         "player2.name": userName, 
-        "player2.score": 0 
+        "player2.score": 0,
+        "player2.finished": false,
+        "player2.responses": []
       } 
     },
     { new: true }
   );
 
-  if (match) {
-    return { success: true, matchId: match._id.toString(), isHost: false };
-  }
+  if (match) return { success: true, matchId: match._id.toString(), isHost: false };
 
-  // Generate questions if no match found
   const questions = await generatePvPQuestions(mode, category);
-  
-  if (!questions) {
-    return { success: false, message: "Failed to generate arena." };
-  }
+  if (!questions) return { success: false, message: "Failed to generate arena." };
 
-  // Create new match
   match = await Match.create({
     mode,
     category,
     status: "waiting",
-    player1: { userId, name: userName, score: 0 },
-    player2: { userId: null, name: null, score: 0 },
+    player1: { userId, name: userName, score: 0, finished: false, responses: [] },
+    player2: { userId: null, name: null, score: 0, finished: false, responses: [] },
     questions: questions
   });
 
   return { success: true, matchId: match._id.toString(), isHost: true };
 }
 
-// 3. Submit Results
-export async function submitMatchResults(matchId, userId, finalScore) {
+// 3. STEP-BY-STEP: Save individual answer to DB (No grading yet)
+export async function savePlayerAnswer(matchId, userId, responseObj) {
+  await connectDB();
+  
+  try {
+    const match = await Match.findById(matchId);
+    if (!match) return { success: false };
+
+    const isPlayer1 = match.player1.userId === userId;
+    const playerKey = isPlayer1 ? "player1" : "player2";
+
+    match[playerKey].responses.push({
+      questionIndex: responseObj.questionIndex,
+      selectedOption: responseObj.selectedOption,
+      timeTaken: responseObj.timeTaken,
+      isCorrect: false 
+    });
+
+    await match.save();
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving answer:", error);
+    return { success: false };
+  }
+}
+
+// 4. SECURE GRADING: Check results and calculate winner only when finished
+export async function calculateFinalResults(matchId, userId) {
   await connectDB();
 
   try {
     const match = await Match.findById(matchId);
-    if (!match) return { success: false, message: "Match not found" };
+    if (!match) return { success: false };
 
-    // Update specific player
-    if (match.player1.userId === userId) {
-        match.player1.score = finalScore;
-    } else if (match.player2.userId === userId) {
-        match.player2.score = finalScore;
+    // Mark the requesting player as finished
+    const isPlayer1 = match.player1.userId === userId;
+    const playerKey = isPlayer1 ? "player1" : "player2";
+    match[playerKey].finished = true;
+
+    // Wait for BOTH players to finish before grading
+    if (!match.player1.finished || !match.player2.finished) {
+      await match.save();
+      return { success: true, matchCompleted: false };
     }
 
-    const p1Finished = match.player1.score > 0 || finalScore === 0;
-    const p2Finished = match.player2.score > 0;
+    // Both are finished! Calculate the true results.
+    let p1Score = 0;
+    let p2Score = 0;
 
-    if (p1Finished && p2Finished && match.status !== "completed") {
-      match.status = "completed";
-      
-      if (match.player1.score > match.player2.score) {
-        match.winner = match.player1.userId;
-      } else if (match.player2.score > match.player1.score) {
-        match.winner = match.player2.userId;
-      } else {
-        match.winner = "draw";
+    // Grade Player 1
+    match.player1.responses.forEach(res => {
+      const actualAnswer = match.questions[res.questionIndex].correctAnswer;
+      if (res.selectedOption === actualAnswer) {
+        res.isCorrect = true;
+        p1Score += 10;
       }
-    }
+    });
 
-    // Force Mongoose to recognize the nested update
-    match.markModified('player1');
-    match.markModified('player2');
-    
+    // Grade Player 2
+    match.player2.responses.forEach(res => {
+      const actualAnswer = match.questions[res.questionIndex].correctAnswer;
+      if (res.selectedOption === actualAnswer) {
+        res.isCorrect = true;
+        p2Score += 10;
+      }
+    });
+
+    // Save final scores and declare winner
+    match.player1.score = p1Score;
+    match.player2.score = p2Score;
+    match.status = "completed";
+
+    if (p1Score > p2Score) match.winner = match.player1.userId;
+    else if (p2Score > p1Score) match.winner = match.player2.userId;
+    else match.winner = "draw";
+
     await match.save();
-    return { success: true, winner: match.winner };
-    
+
+    return { 
+      success: true, 
+      matchCompleted: true,
+      finalScore: isPlayer1 ? p1Score : p2Score
+    };
   } catch (error) {
-    console.error("Error saving match results:", error);
-    return { success: false, message: "Failed to record results" };
+    console.error("Error calculating results:", error);
+    return { success: false };
   }
 }
 
-// 4. Cancel Match
+// 5. Cancel Match
 export async function cancelMatch(matchId) {
   await connectDB();
   try {
@@ -153,7 +193,7 @@ export async function cancelMatch(matchId) {
   }
 }
 
-// 5. Check Status
+// 6. Check Status
 export async function checkMatchStatus(matchId) {
   await connectDB();
   const match = await Match.findById(matchId).select('status');
