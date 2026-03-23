@@ -24,7 +24,6 @@ export default function LivePvPBoard({ params }) {
   const [opponentName, setOpponentName] = useState("Opponent");
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [timeLeft, setTimeLeft] = useState(60);
   const [questionStartTime, setQuestionStartTime] = useState(0);
@@ -49,7 +48,7 @@ export default function LivePvPBoard({ params }) {
     fetchMatch();
   }, [matchId, userId, router]);
 
-  // FIX: Minimal dependency array prevents WebSocket from randomly disconnecting!
+  // WebSocket Listeners
   useEffect(() => {
     const channel = supabase.channel(`match_${matchId}`);
 
@@ -72,12 +71,16 @@ export default function LivePvPBoard({ params }) {
           router.push('/online-battle');
         }
       })
+      // NEW: Listen for match completion from opponent
+      .on('broadcast', { event: 'match_completed' }, (payload) => {
+        renderFinalResults(payload.match);
+      })
       .subscribe();
 
     channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId, userName } });
 
     return () => { supabase.removeChannel(channel); };
-  }, [matchId, userId, userName]); // <-- Empty of gameStatus to keep connection solid
+  }, [matchId, userId, userName]); 
 
   useEffect(() => {
     if (gameStatus !== "waiting") return;
@@ -99,7 +102,7 @@ export default function LivePvPBoard({ params }) {
   useEffect(() => {
     if (isReady && opponentReady) {
       setGameStatus("playing");
-      setQuestionStartTime(Date.now()); // Start timer for question 1
+      setQuestionStartTime(Date.now()); 
     }
   }, [isReady, opponentReady]);
 
@@ -114,17 +117,34 @@ export default function LivePvPBoard({ params }) {
     router.push('/online-battle');
   };
 
-  const handleEndGame = async (finalScore) => {
+  // Helper to safely set final scores from server data
+  const renderFinalResults = (finalMatchData) => {
+    const isPlayer1 = finalMatchData.player1.userId === userId;
+    setMyScore(isPlayer1 ? finalMatchData.player1.score : finalMatchData.player2.score);
+    setOpponentScore(isPlayer1 ? finalMatchData.player2.score : finalMatchData.player1.score);
     setGameStatus("ended");
-    setIsSubmitting(true);
-    await submitMatchResults(matchId, userId, finalScore);
-    setIsSubmitting(false);
+  };
+
+  const handleEndGame = async (finalScore) => {
+    setGameStatus("waiting_for_opponent"); // Show loading screen while waiting for other player
+    const res = await submitMatchResults(matchId, userId, finalScore);
+
+    if (res.success && res.isComplete) {
+      // I am the second player to finish! Send the final server data to Player 1.
+      supabase.channel(`match_${matchId}`).send({ 
+        type: 'broadcast', 
+        event: 'match_completed', 
+        payload: { match: res.match } 
+      });
+      // Show my own results too
+      renderFinalResults(res.match);
+    }
   };
 
   const moveToNextQuestion = (currentScore) => {
     if (currentQIndex < matchData.questions.length - 1) {
       setCurrentQIndex(currentQIndex + 1);
-      setQuestionStartTime(Date.now()); // Reset timer
+      setQuestionStartTime(Date.now()); 
     } else {
       handleEndGame(currentScore);
     }
@@ -136,7 +156,6 @@ export default function LivePvPBoard({ params }) {
   };
 
   const handleAnswer = (optionId) => {
-    // 1. Immediately fire-and-forget save to database!
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
     savePlayerAnswer(matchId, userId, {
       questionIndex: currentQIndex,
@@ -144,7 +163,6 @@ export default function LivePvPBoard({ params }) {
       timeTaken: Math.min(timeTaken, 30)
     });
 
-    // 2. Original live score logic
     const isCorrect = matchData.questions[currentQIndex].correctAnswer === optionId;
     let newScore = myScore;
     
@@ -222,41 +240,45 @@ export default function LivePvPBoard({ params }) {
     );
   }
 
+  // NEW: Waiting for opponent screen!
+  if (gameStatus === "waiting_for_opponent") {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white">
+         <Loader2 className="animate-spin w-16 h-16 text-blue-500 mb-6" />
+         <h2 className="text-3xl font-bold text-slate-200 mb-2">You Finished!</h2>
+         <p className="text-xl text-slate-400 animate-pulse">Waiting for {opponentName} to finish...</p>
+      </div>
+    );
+  }
+
   if (gameStatus === "ended") {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white">
-        {isSubmitting ? (
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="animate-spin w-12 h-12 text-blue-500" />
-            <p className="text-xl">Syncing battle results with the server...</p>
+        <div className="bg-slate-900 border border-slate-700 p-10 rounded-3xl text-center max-w-lg w-full">
+          <h1 className="text-4xl font-black mb-8 text-white">Battle Concluded!</h1>
+          
+          <div className="flex justify-around items-center mb-8">
+             <div className="text-center">
+               <p className="text-slate-400 text-sm mb-1">{userName}</p>
+               <p className="text-4xl font-bold text-blue-400">{myScore}</p>
+             </div>
+             <div className="h-16 w-px bg-slate-700"></div>
+             <div className="text-center">
+               <p className="text-slate-400 text-sm mb-1">{opponentName}</p>
+               <p className="text-4xl font-bold text-red-400">{opponentScore}</p>
+             </div>
           </div>
-        ) : (
-          <div className="bg-slate-900 border border-slate-700 p-10 rounded-3xl text-center max-w-lg w-full">
-            <h1 className="text-4xl font-black mb-8 text-white">Battle Concluded!</h1>
-            
-            <div className="flex justify-around items-center mb-8">
-               <div className="text-center">
-                 <p className="text-slate-400 text-sm mb-1">{userName}</p>
-                 <p className="text-4xl font-bold text-blue-400">{myScore}</p>
-               </div>
-               <div className="h-16 w-px bg-slate-700"></div>
-               <div className="text-center">
-                 <p className="text-slate-400 text-sm mb-1">{opponentName}</p>
-                 <p className="text-4xl font-bold text-red-400">{opponentScore}</p>
-               </div>
-            </div>
 
-            <div className={`py-4 rounded-xl mb-8 ${myScore > opponentScore ? 'bg-green-500/10 text-green-400 border border-green-500/20' : myScore < opponentScore ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'}`}>
-               <h2 className="text-3xl font-bold tracking-widest uppercase">
-                 {myScore > opponentScore ? "Victory" : myScore < opponentScore ? "Defeat" : "Draw"}
-               </h2>
-            </div>
-            
-            <button onClick={() => router.push('/online-battle')} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition border border-slate-600">
-              Return to Lobby
-            </button>
+          <div className={`py-4 rounded-xl mb-8 ${myScore > opponentScore ? 'bg-green-500/10 text-green-400 border border-green-500/20' : myScore < opponentScore ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'}`}>
+             <h2 className="text-3xl font-bold tracking-widest uppercase">
+               {myScore > opponentScore ? "Victory" : myScore < opponentScore ? "Defeat" : "Draw"}
+             </h2>
           </div>
-        )}
+          
+          <button onClick={() => router.push('/online-battle')} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition border border-slate-600">
+            Return to Lobby
+          </button>
+        </div>
       </div>
     );
   }

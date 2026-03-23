@@ -10,7 +10,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 async function generatePvPQuestions(mode, category) {
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   let promptContext = mode === "exam" 
-    ? `Generate a balanced mix of 7 questions for the entire ${category} syllabus (Physics, Chemistry, and Math/Biology).`
+    ? `Generate a balanced mix of 7 questions for the entire ${category} syllabus.`
     : `Generate 7 questions specifically for ${category}. Focus strictly on this subject.`;
 
   const prompt = `
@@ -43,7 +43,7 @@ async function generatePvPQuestions(mode, category) {
   }
 }
 
-// 2. Matchmaking (Restored to exact previous logic)
+// 2. Matchmaking
 export async function findOrStartMatch(userId, userName, mode, category) {
   await connectDB();
 
@@ -76,7 +76,7 @@ export async function findOrStartMatch(userId, userName, mode, category) {
   return { success: true, matchId: match._id.toString(), isHost: true };
 }
 
-// 3. NEW: Save single answer to DB
+// 3. Save single answer to DB
 export async function savePlayerAnswer(matchId, userId, responseObj) {
   await connectDB();
   try {
@@ -99,7 +99,7 @@ export async function savePlayerAnswer(matchId, userId, responseObj) {
   }
 }
 
-// 4. Submit & Verify Results using DB answers
+// 4. Submit & Verify Results 
 export async function submitMatchResults(matchId, userId, clientReportedScore) {
   await connectDB();
   try {
@@ -109,11 +109,11 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
     const isPlayer1 = match.player1.userId === userId;
     const playerKey = isPlayer1 ? "player1" : "player2";
 
-    // Mark as finished and set temporary optimistic score
+    // Mark current player as finished
     match[playerKey].finished = true;
     match[playerKey].score = clientReportedScore; 
 
-    // ONLY when both players finish, we grade the DB answers and lock it!
+    // If BOTH players are finished, calculate the real final winner
     if (match.player1.finished && match.player2.finished && match.status !== "completed") {
       let p1Score = 0; let p2Score = 0;
 
@@ -127,7 +127,6 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
         if (res.selectedOption === actualAnswer) { res.isCorrect = true; p2Score += 10; }
       });
 
-      // Override with true verified scores
       match.player1.score = p1Score;
       match.player2.score = p2Score;
       match.status = "completed";
@@ -135,12 +134,20 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
       if (p1Score > p2Score) match.winner = match.player1.userId;
       else if (p2Score > p1Score) match.winner = match.player2.userId;
       else match.winner = "draw";
+
+      match.markModified('player1');
+      match.markModified('player2');
+      await match.save();
+      
+      // Return isComplete: true and the plain JS object of the match
+      return { success: true, isComplete: true, match: JSON.parse(JSON.stringify(match)) };
     }
 
+    // Otherwise, just save and tell client we are waiting for opponent
     match.markModified('player1');
     match.markModified('player2');
     await match.save();
-    return { success: true, winner: match.winner };
+    return { success: true, isComplete: false };
     
   } catch (error) {
     return { success: false };
