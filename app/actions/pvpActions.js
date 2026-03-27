@@ -2,13 +2,12 @@
 
 import connectDB from "@/lib/db";
 import Match from "@/models/Match";
-import Player from "@/models/Player"; // <-- Import new Player model
+import Player from "@/models/Player"; 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// 1. Generate Questions
-async function generatePvPQuestions(mode, category) {
+export async function generatePvPQuestions(mode, category) {
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   let promptContext = mode === "exam" 
     ? `Generate a balanced mix of 7 questions for the entire ${category} syllabus.`
@@ -44,7 +43,6 @@ async function generatePvPQuestions(mode, category) {
   }
 }
 
-// 2. Matchmaking
 export async function findOrStartMatch(userId, userName, mode, category) {
   await connectDB();
 
@@ -77,7 +75,6 @@ export async function findOrStartMatch(userId, userName, mode, category) {
   return { success: true, matchId: match._id.toString(), isHost: true };
 }
 
-// 3. Save single answer to DB
 export async function savePlayerAnswer(matchId, userId, responseObj) {
   await connectDB();
   try {
@@ -101,54 +98,69 @@ export async function savePlayerAnswer(matchId, userId, responseObj) {
   }
 }
 
-// 4. Submit & Verify Results 
 export async function submitMatchResults(matchId, userId, clientReportedScore) {
   await connectDB();
   try {
-    const match = await Match.findById(matchId);
-    if (!match) return { success: false };
+    const tempMatch = await Match.findById(matchId).select("player1.userId");
+    if (!tempMatch) return { success: false };
 
-    const isPlayer1 = match.player1.userId === userId;
+    const isPlayer1 = tempMatch.player1.userId === userId;
     const playerKey = isPlayer1 ? "player1" : "player2";
 
-    match[playerKey].finished = true;
-    match[playerKey].score = clientReportedScore; 
+    // 1. Atomically update THIS player's finish state
+    const match = await Match.findOneAndUpdate(
+      { _id: matchId },
+      {
+        $set: {
+          [`${playerKey}.finished`]: true,
+          [`${playerKey}.score`]: clientReportedScore
+        }
+      },
+      { new: true } // Return updated doc
+    );
 
-    // If BOTH players are finished
+    // 2. Safely check if BOTH are finished
     if (match.player1.finished && match.player2.finished && match.status !== "completed") {
-      let p1Score = 0; let p2Score = 0;
+      
+      // 3. Atomically lock the completion calculation to prevent race conditions
+      const finalMatch = await Match.findOneAndUpdate(
+        { _id: matchId, status: { $ne: "completed" } },
+        { $set: { status: "completed" } },
+        { new: true }
+      );
 
-      match.player1.responses.forEach(res => {
-        const actualAnswer = match.questions[res.questionIndex]?.correctAnswer;
-        if (res.selectedOption === actualAnswer) { res.isCorrect = true; p1Score += 10; }
-      });
+      if (finalMatch) {
+        // I won the race condition lock! Perform calculations.
+        let p1Score = 0; let p2Score = 0;
 
-      match.player2.responses.forEach(res => {
-        const actualAnswer = match.questions[res.questionIndex]?.correctAnswer;
-        if (res.selectedOption === actualAnswer) { res.isCorrect = true; p2Score += 10; }
-      });
+        finalMatch.player1.responses.forEach(res => {
+          const actualAnswer = finalMatch.questions[res.questionIndex]?.correctAnswer;
+          if (res.selectedOption === actualAnswer) { res.isCorrect = true; p1Score += 10; }
+        });
 
-      match.player1.score = p1Score;
-      match.player2.score = p2Score;
-      match.status = "completed";
+        finalMatch.player2.responses.forEach(res => {
+          const actualAnswer = finalMatch.questions[res.questionIndex]?.correctAnswer;
+          if (res.selectedOption === actualAnswer) { res.isCorrect = true; p2Score += 10; }
+        });
 
-      if (p1Score > p2Score) match.winner = match.player1.userId;
-      else if (p2Score > p1Score) match.winner = match.player2.userId;
-      else match.winner = "draw";
+        finalMatch.player1.score = p1Score;
+        finalMatch.player2.score = p2Score;
 
-      match.markModified('player1');
-      match.markModified('player2');
-      await match.save();
+        if (p1Score > p2Score) finalMatch.winner = finalMatch.player1.userId;
+        else if (p2Score > p1Score) finalMatch.winner = finalMatch.player2.userId;
+        else finalMatch.winner = "draw";
 
-      // Trigger the points allocation!
-      await awardMatchPoints(match, p1Score, p2Score);
+        await finalMatch.save();
+        await awardMatchPoints(finalMatch, p1Score, p2Score);
 
-      return { success: true, isComplete: true, match: JSON.parse(JSON.stringify(match)) };
+        return { success: true, isComplete: true, match: JSON.parse(JSON.stringify(finalMatch)) };
+      } else {
+        // The other process already locked and finalized it, just fetch the result
+        const completedMatch = await Match.findById(matchId);
+        return { success: true, isComplete: true, match: JSON.parse(JSON.stringify(completedMatch)) };
+      }
     }
 
-    match.markModified('player1');
-    match.markModified('player2');
-    await match.save();
     return { success: true, isComplete: false };
     
   } catch (error) {
@@ -168,10 +180,8 @@ export async function cancelMatch(matchId) {
   } catch (error) { return { success: false }; }
 }
 
-// 5. Leaderboard Update Logic
 async function awardMatchPoints(match, p1Score, p2Score) {
   try {
-    // Prevent awarding points twice if something goes wrong
     if (match.pointsAwarded) return;
 
     const winPoints = 50; const lossPoints = 10; const drawPoints = 25;
@@ -186,7 +196,6 @@ async function awardMatchPoints(match, p1Score, p2Score) {
       p1Result = "losses"; p2Result = "wins";
     }
 
-    // Upsert Player 1
     await Player.findOneAndUpdate(
       { userId: match.player1.userId },
       { 
@@ -196,7 +205,6 @@ async function awardMatchPoints(match, p1Score, p2Score) {
       { upsert: true, new: true }
     );
 
-    // Upsert Player 2
     if (match.player2.userId) {
       await Player.findOneAndUpdate(
         { userId: match.player2.userId },
@@ -215,17 +223,14 @@ async function awardMatchPoints(match, p1Score, p2Score) {
   }
 }
 
-// 6. Fetch Leaderboard Data
 export async function getLeaderboard(limit = 10) {
   await connectDB();
   try {
-    // Sort by totalPoints descending
     const players = await Player.find()
       .sort({ totalPoints: -1 })
       .limit(limit)
       .lean();
     
-    // Convert ObjectIds to strings for Next.js client
     return { success: true, data: JSON.parse(JSON.stringify(players)) };
   } catch (error) {
     console.error("Failed to fetch leaderboard:", error);

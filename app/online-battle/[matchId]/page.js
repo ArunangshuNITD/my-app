@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, use } from "react"; 
+import { useEffect, useState, use, useRef } from "react"; 
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import PvPTimer from "@/components/PvPTimer";
@@ -28,6 +28,9 @@ export default function LivePvPBoard({ params }) {
   const [timeLeft, setTimeLeft] = useState(60);
   const [questionStartTime, setQuestionStartTime] = useState(0);
 
+  // Use a ref to hold our active channel instance so we can reliably send messages
+  const channelRef = useRef(null);
+
   useEffect(() => {
     const fetchMatch = async () => {
       try {
@@ -51,6 +54,7 @@ export default function LivePvPBoard({ params }) {
   // WebSocket Listeners
   useEffect(() => {
     const channel = supabase.channel(`match_${matchId}`);
+    channelRef.current = channel; // Store in ref for global access
 
     channel
       .on('broadcast', { event: 'score_update' }, (payload) => {
@@ -74,12 +78,32 @@ export default function LivePvPBoard({ params }) {
       .on('broadcast', { event: 'match_completed' }, (payload) => {
         renderFinalResults(payload.match);
       })
-      .subscribe();
-
-    channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId, userName } });
+      .subscribe((status) => {
+        // Only send the join event AFTER we are fully connected
+        if (status === 'SUBSCRIBED') {
+          channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId, userName } });
+        }
+      });
 
     return () => { supabase.removeChannel(channel); };
-  }, [matchId, userId, userName]); 
+  }, [matchId, userId, userName, router]); 
+
+  // Fallback Polling: In case the WebSocket message drops, periodically check the server if waiting
+  useEffect(() => {
+    let pollInterval;
+    if (gameStatus === "waiting_for_opponent") {
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/matches/${matchId}`);
+          const data = await res.json();
+          if (data.success && data.match?.status === "completed") {
+            renderFinalResults(data.match);
+          }
+        } catch (err) { console.error("Polling error:", err); }
+      }, 3000); 
+    }
+    return () => clearInterval(pollInterval);
+  }, [gameStatus, matchId]);
 
   useEffect(() => {
     if (gameStatus !== "waiting") return;
@@ -107,11 +131,11 @@ export default function LivePvPBoard({ params }) {
 
   const handleReady = () => {
     setIsReady(true);
-    supabase.channel(`match_${matchId}`).send({ type: 'broadcast', event: 'player_ready', payload: { userId } });
+    channelRef.current?.send({ type: 'broadcast', event: 'player_ready', payload: { userId } });
   };
 
   const handleCancel = async () => {
-    supabase.channel(`match_${matchId}`).send({ type: 'broadcast', event: 'player_canceled', payload: { userId } });
+    channelRef.current?.send({ type: 'broadcast', event: 'player_canceled', payload: { userId } });
     await cancelMatch(matchId); 
     router.push('/online-battle');
   };
@@ -128,8 +152,8 @@ export default function LivePvPBoard({ params }) {
     const res = await submitMatchResults(matchId, userId, finalScore);
 
     if (res.success && res.isComplete) {
-      // I am the second player to finish! Send the final server data to Player 1.
-      supabase.channel(`match_${matchId}`).send({ 
+      // Use the existing active channel ref to broadcast
+      channelRef.current?.send({ 
         type: 'broadcast', 
         event: 'match_completed', 
         payload: { match: res.match } 
@@ -147,31 +171,27 @@ export default function LivePvPBoard({ params }) {
     }
   };
 
-  // ADDED ASYNC/AWAIT TO PREVENT RACE CONDITION
   const handleTimeUp = async () => {
     await savePlayerAnswer(matchId, userId, { questionIndex: currentQIndex, selectedOption: null, timeTaken: 30 });
     moveToNextQuestion(myScore);
   };
 
-  // ADDED ASYNC/AWAIT TO PREVENT RACE CONDITION
   const handleAnswer = async (optionId) => {
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
     const isCorrect = matchData.questions[currentQIndex].correctAnswer === optionId;
     let newScore = myScore;
     
-    // Optimistically update the UI and broadcast so it feels snappy
     if (isCorrect) {
       newScore = myScore + 10;
       setMyScore(newScore);
       
-      supabase.channel(`match_${matchId}`).send({
+      channelRef.current?.send({
         type: 'broadcast',
         event: 'score_update',
         payload: { userId, score: newScore }
       });
     }
 
-    // Await the database save BEFORE checking if the game should end
     await savePlayerAnswer(matchId, userId, {
       questionIndex: currentQIndex,
       selectedOption: optionId,
@@ -181,7 +201,6 @@ export default function LivePvPBoard({ params }) {
     moveToNextQuestion(newScore);
   };
 
-  // --- RENDERING VIEWS (Unchanged) --- 
   if (gameStatus === "loading" || !matchData) {
     return <div className="min-h-screen bg-slate-950 flex justify-center items-center text-white"><Loader2 className="animate-spin w-10 h-10 text-blue-500" /></div>;
   }
