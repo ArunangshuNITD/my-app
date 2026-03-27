@@ -30,7 +30,8 @@ const MatchSchema = new mongoose.Schema({
   player1: { type: PlayerSchema, required: true },
   player2: { type: PlayerSchema, default: () => ({ userId: null, name: null, score: 0, finished: false, responses: [] }) },
   questions: [QuestionSchema],
-  winner: { type: String, default: null }
+  winner: { type: String, default: null },
+  pointsAwarded: { type: Boolean, default: false } // Safety flag for the store system
 }, { timestamps: true });
 
 export default mongoose.models.Match || mongoose.model("Match", MatchSchema);

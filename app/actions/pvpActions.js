@@ -2,6 +2,7 @@
 
 import connectDB from "@/lib/db";
 import Match from "@/models/Match";
+import Player from "@/models/Player"; // <-- Import new Player model
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -93,6 +94,7 @@ export async function savePlayerAnswer(matchId, userId, responseObj) {
       isCorrect: false 
     });
 
+    match.markModified(playerKey);
     await match.save();
   } catch (error) {
     console.error("Error saving answer:", error);
@@ -109,11 +111,10 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
     const isPlayer1 = match.player1.userId === userId;
     const playerKey = isPlayer1 ? "player1" : "player2";
 
-    // Mark current player as finished
     match[playerKey].finished = true;
     match[playerKey].score = clientReportedScore; 
 
-    // If BOTH players are finished, calculate the real final winner
+    // If BOTH players are finished
     if (match.player1.finished && match.player2.finished && match.status !== "completed") {
       let p1Score = 0; let p2Score = 0;
 
@@ -138,12 +139,13 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
       match.markModified('player1');
       match.markModified('player2');
       await match.save();
-      
-      // Return isComplete: true and the plain JS object of the match
+
+      // Trigger the points allocation!
+      await awardMatchPoints(match, p1Score, p2Score);
+
       return { success: true, isComplete: true, match: JSON.parse(JSON.stringify(match)) };
     }
 
-    // Otherwise, just save and tell client we are waiting for opponent
     match.markModified('player1');
     match.markModified('player2');
     await match.save();
@@ -164,4 +166,69 @@ export async function cancelMatch(matchId) {
     }
     return { success: false };
   } catch (error) { return { success: false }; }
+}
+
+// 5. Leaderboard Update Logic
+async function awardMatchPoints(match, p1Score, p2Score) {
+  try {
+    // Prevent awarding points twice if something goes wrong
+    if (match.pointsAwarded) return;
+
+    const winPoints = 50; const lossPoints = 10; const drawPoints = 25;
+    let p1Points = drawPoints; let p2Points = drawPoints;
+    let p1Result = "draws"; let p2Result = "draws";
+
+    if (match.winner === match.player1.userId) {
+      p1Points = winPoints; p2Points = lossPoints;
+      p1Result = "wins"; p2Result = "losses";
+    } else if (match.winner === match.player2.userId) {
+      p1Points = lossPoints; p2Points = winPoints;
+      p1Result = "losses"; p2Result = "wins";
+    }
+
+    // Upsert Player 1
+    await Player.findOneAndUpdate(
+      { userId: match.player1.userId },
+      { 
+        $set: { name: match.player1.name },
+        $inc: { totalPoints: p1Points, [p1Result]: 1 }
+      },
+      { upsert: true, new: true }
+    );
+
+    // Upsert Player 2
+    if (match.player2.userId) {
+      await Player.findOneAndUpdate(
+        { userId: match.player2.userId },
+        { 
+          $set: { name: match.player2.name },
+          $inc: { totalPoints: p2Points, [p2Result]: 1 }
+        },
+        { upsert: true, new: true }
+      );
+    }
+
+    match.pointsAwarded = true;
+    await match.save();
+  } catch (error) {
+    console.error("Failed to award points:", error);
+  }
+}
+
+// 6. Fetch Leaderboard Data
+export async function getLeaderboard(limit = 10) {
+  await connectDB();
+  try {
+    // Sort by totalPoints descending
+    const players = await Player.find()
+      .sort({ totalPoints: -1 })
+      .limit(limit)
+      .lean();
+    
+    // Convert ObjectIds to strings for Next.js client
+    return { success: true, data: JSON.parse(JSON.stringify(players)) };
+  } catch (error) {
+    console.error("Failed to fetch leaderboard:", error);
+    return { success: false, data: [] };
+  }
 }

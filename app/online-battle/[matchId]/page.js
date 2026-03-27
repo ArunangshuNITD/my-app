@@ -71,7 +71,6 @@ export default function LivePvPBoard({ params }) {
           router.push('/online-battle');
         }
       })
-      // NEW: Listen for match completion from opponent
       .on('broadcast', { event: 'match_completed' }, (payload) => {
         renderFinalResults(payload.match);
       })
@@ -117,7 +116,6 @@ export default function LivePvPBoard({ params }) {
     router.push('/online-battle');
   };
 
-  // Helper to safely set final scores from server data
   const renderFinalResults = (finalMatchData) => {
     const isPlayer1 = finalMatchData.player1.userId === userId;
     setMyScore(isPlayer1 ? finalMatchData.player1.score : finalMatchData.player2.score);
@@ -126,7 +124,7 @@ export default function LivePvPBoard({ params }) {
   };
 
   const handleEndGame = async (finalScore) => {
-    setGameStatus("waiting_for_opponent"); // Show loading screen while waiting for other player
+    setGameStatus("waiting_for_opponent"); 
     const res = await submitMatchResults(matchId, userId, finalScore);
 
     if (res.success && res.isComplete) {
@@ -136,7 +134,6 @@ export default function LivePvPBoard({ params }) {
         event: 'match_completed', 
         payload: { match: res.match } 
       });
-      // Show my own results too
       renderFinalResults(res.match);
     }
   };
@@ -150,22 +147,19 @@ export default function LivePvPBoard({ params }) {
     }
   };
 
-  const handleTimeUp = () => {
-    savePlayerAnswer(matchId, userId, { questionIndex: currentQIndex, selectedOption: null, timeTaken: 30 });
+  // ADDED ASYNC/AWAIT TO PREVENT RACE CONDITION
+  const handleTimeUp = async () => {
+    await savePlayerAnswer(matchId, userId, { questionIndex: currentQIndex, selectedOption: null, timeTaken: 30 });
     moveToNextQuestion(myScore);
   };
 
-  const handleAnswer = (optionId) => {
+  // ADDED ASYNC/AWAIT TO PREVENT RACE CONDITION
+  const handleAnswer = async (optionId) => {
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
-    savePlayerAnswer(matchId, userId, {
-      questionIndex: currentQIndex,
-      selectedOption: optionId,
-      timeTaken: Math.min(timeTaken, 30)
-    });
-
     const isCorrect = matchData.questions[currentQIndex].correctAnswer === optionId;
     let newScore = myScore;
     
+    // Optimistically update the UI and broadcast so it feels snappy
     if (isCorrect) {
       newScore = myScore + 10;
       setMyScore(newScore);
@@ -177,10 +171,17 @@ export default function LivePvPBoard({ params }) {
       });
     }
 
+    // Await the database save BEFORE checking if the game should end
+    await savePlayerAnswer(matchId, userId, {
+      questionIndex: currentQIndex,
+      selectedOption: optionId,
+      timeTaken: Math.min(timeTaken, 30)
+    });
+
     moveToNextQuestion(newScore);
   };
 
-  // --- RENDERING VIEWS --- 
+  // --- RENDERING VIEWS (Unchanged) --- 
   if (gameStatus === "loading" || !matchData) {
     return <div className="min-h-screen bg-slate-950 flex justify-center items-center text-white"><Loader2 className="animate-spin w-10 h-10 text-blue-500" /></div>;
   }
@@ -240,7 +241,6 @@ export default function LivePvPBoard({ params }) {
     );
   }
 
-  // NEW: Waiting for opponent screen!
   if (gameStatus === "waiting_for_opponent") {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white">
