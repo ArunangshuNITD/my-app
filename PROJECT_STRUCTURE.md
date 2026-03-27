@@ -220,6 +220,7 @@ my-app/
 │   ├── Mentor.js
 │   ├── Message.js
 │   ├── Order.js
+│   ├── Player.js
 │   ├── Product.js
 │   ├── Review.js
 │   ├── SkillProgress.js
