@@ -2,8 +2,9 @@
 import { useEffect, useState, use, useRef } from "react"; 
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
-import { submitMatchResults, cancelMatch, savePlayerAnswer, handleSuddenDeathAnswer } from "@/app/actions/pvpActions";
-import { Loader2, Swords, X, Clock, Flame, Zap, Hourglass, DivideCircle, SmilePlus } from "lucide-react";
+import PvPTimer from "@/components/PvPTimer";
+import { submitMatchResults, cancelMatch, savePlayerAnswer } from "@/app/actions/pvpActions"; 
+import { Loader2, Swords, X, Clock, Zap, Target, Snowflake, Flame } from "lucide-react";
 
 export default function LivePvPBoard({ params }) {
   const resolvedParams = use(params);
@@ -14,43 +15,34 @@ export default function LivePvPBoard({ params }) {
   const userId = searchParams.get("userId"); 
   const userName = searchParams.get("userName") || "You"; 
 
+  // Match State
   const [matchData, setMatchData] = useState(null);
   const [currentQIndex, setCurrentQIndex] = useState(0);
-  
-  // Score and Combo States
+  const [gameStatus, setGameStatus] = useState("loading"); 
+  const [opponentName, setOpponentName] = useState("Opponent");
+  const [isReady, setIsReady] = useState(false);
+  const [opponentReady, setOpponentReady] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(60);
+  const [questionStartTime, setQuestionStartTime] = useState(0);
+
+  // Scores & Combos
   const [myScore, setMyScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
   const [myCombo, setMyCombo] = useState(0);
   const [opponentCombo, setOpponentCombo] = useState(0);
 
-  // Bonus Notification State
-  const [showBonus, setShowBonus] = useState(false);
-  const [bonusText, setBonusText] = useState("");
-  const [opponentNotification, setOpponentNotification] = useState("");
-  
-  const [gameStatus, setGameStatus] = useState("loading"); 
-  const [opponentName, setOpponentName] = useState("Opponent");
-  const [isReady, setIsReady] = useState(false);
-  const [opponentReady, setOpponentReady] = useState(false);
-  
-  // Timer States
-  const [qTimeLeft, setQTimeLeft] = useState(30);
-  const [timeLeft, setTimeLeft] = useState(60); // Matchmaking timer
-  const [questionStartTime, setQuestionStartTime] = useState(0);
-
-  // Power-Ups State
-  const [usedPowerUps, setUsedPowerUps] = useState({ fiftyFifty: false, timeFreeze: false, doubleJeopardy: false });
+  // Power-Ups
+  const [powerups, setPowerups] = useState({ fifty: true, freeze: true, double: true });
   const [hiddenOptions, setHiddenOptions] = useState([]);
-  const [isTimeFrozen, setIsTimeFrozen] = useState(false);
   const [doubleJeopardyActive, setDoubleJeopardyActive] = useState(false);
+  const [timerDuration, setTimerDuration] = useState(30);
 
-  // Emotes State
-  const [floatingEmotes, setFloatingEmotes] = useState([]);
+  // Emotes & UI Events
+  const [activeEmotes, setActiveEmotes] = useState([]);
+  const [battleMessage, setBattleMessage] = useState("");
 
   const channelRef = useRef(null);
-  // Ref to hold the latest game state to prevent stale closures in timers
-  const stateRef = useRef({ myScore, currentQIndex });
-  useEffect(() => { stateRef.current = { myScore, currentQIndex }; }, [myScore, currentQIndex]);
+  const EMOTES = ["🤯", "🚀", "😭", "🎯"];
 
   useEffect(() => {
     const fetchMatch = async () => {
@@ -72,57 +64,17 @@ export default function LivePvPBoard({ params }) {
     fetchMatch();
   }, [matchId, userId, router]);
 
-  // RESTORED: Fallback Polling (Crucial for preventing endless waiting screens)
-  useEffect(() => {
-    let pollInterval;
-    if (gameStatus === "waiting" || gameStatus === "waiting_for_opponent") {
-      pollInterval = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/matches/${matchId}`);
-          const data = await res.json();
-          
-          if (data.success && data.match) {
-            if (gameStatus === "waiting" && data.match.player2 && data.match.player2.userId) {
-              const oppName = data.match.player1.userId === userId ? data.match.player2.name : data.match.player1.name;
-              setOpponentName(oppName || "Opponent");
-              setGameStatus("opponent_found");
-            }
-            if (gameStatus === "waiting_for_opponent" && data.match.status === "completed") {
-              renderFinalResults(data.match);
-            }
-          }
-        } catch (err) { console.error("Polling error:", err); }
-      }, 3000); 
-    }
-    return () => clearInterval(pollInterval);
-  }, [gameStatus, matchId, userId]);
-
   // WebSocket Listeners
   useEffect(() => {
     const channel = supabase.channel(`match_${matchId}`);
-    channelRef.current = channel; 
+    channelRef.current = channel;
 
     channel
       .on('broadcast', { event: 'score_update' }, (payload) => {
         if (payload.userId !== userId) {
           setOpponentScore(payload.score);
-          setOpponentCombo(payload.combo); 
+          setOpponentCombo(payload.combo);
         }
-      })
-      .on('broadcast', { event: 'question_answered' }, (payload) => {
-        if (payload.userId !== userId) {
-          setOpponentNotification(`${opponentName} just locked in an answer!`);
-          setTimeout(() => setOpponentNotification(""), 3000);
-        }
-      })
-      .on('broadcast', { event: 'emote' }, (payload) => {
-        if (payload.userId !== userId) triggerEmoteDisplay(payload.emoji, false);
-      })
-      .on('broadcast', { event: 'sudden_death_started' }, () => {
-        setGameStatus("playing");
-        setCurrentQIndex(matchData?.questions?.length || 7); 
-        setQTimeLeft(30);
-        setQuestionStartTime(Date.now());
       })
       .on('broadcast', { event: 'player_joined' }, (payload) => {
         if (payload.userId !== userId) {
@@ -142,6 +94,14 @@ export default function LivePvPBoard({ params }) {
       .on('broadcast', { event: 'match_completed' }, (payload) => {
         renderFinalResults(payload.match);
       })
+      .on('broadcast', { event: 'emote' }, (payload) => {
+        if (payload.userId !== userId) triggerEmote(payload.emoji, 'opponent');
+      })
+      .on('broadcast', { event: 'powerup_used' }, (payload) => {
+        if (payload.userId !== userId) {
+          showBattleMessage(`${opponentName} used ${payload.type}!`);
+        }
+      })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId, userName } });
@@ -149,41 +109,35 @@ export default function LivePvPBoard({ params }) {
       });
 
     return () => { supabase.removeChannel(channel); };
-  }, [matchId, userId, userName, opponentName, router, matchData]); 
+  }, [matchId, userId, userName, opponentName, router]); 
 
-  // Matchmaking Timer
+  // Fallback Polling
+  useEffect(() => {
+    let pollInterval;
+    if (gameStatus === "waiting_for_opponent") {
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/matches/${matchId}`);
+          const data = await res.json();
+          if (data.success && data.match?.status === "completed") {
+            renderFinalResults(data.match);
+          }
+        } catch (err) { console.error("Polling error:", err); }
+      }, 3000); 
+    }
+    return () => clearInterval(pollInterval);
+  }, [gameStatus, matchId]);
+
   useEffect(() => {
     if (gameStatus !== "waiting") return;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
-        if (prev <= 1) { clearInterval(timer); handleMatchmakingTimeout(); return 0; }
+        if (prev <= 1) { clearInterval(timer); handleTimeout(); return 0; }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
   }, [gameStatus]);
-
-  // FIXED: Safe In-Game Question Timer
-  useEffect(() => {
-    if (gameStatus !== "playing" || isTimeFrozen) return;
-    const timer = setInterval(() => {
-      setQTimeLeft((prev) => prev > 0 ? prev - 1 : 0);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [gameStatus, isTimeFrozen, currentQIndex]);
-
-  // Trigger timeout securely via effect to prevent stale closures
-  useEffect(() => {
-    if (qTimeLeft === 0 && gameStatus === "playing" && !isTimeFrozen) {
-      handleTimeUp();
-    }
-  }, [qTimeLeft, gameStatus, isTimeFrozen]);
-
-  const handleMatchmakingTimeout = async () => {
-    await cancelMatch(matchId); 
-    alert("Opponent not found. Please try again later!");
-    router.push('/online-battle');
-  };
 
   useEffect(() => {
     if (isReady && opponentReady) {
@@ -192,9 +146,21 @@ export default function LivePvPBoard({ params }) {
     }
   }, [isReady, opponentReady]);
 
+  const handleTimeout = async () => {
+    await cancelMatch(matchId); 
+    alert("Opponent not found. Please try again later!");
+    router.push('/online-battle');
+  };
+
   const handleReady = () => {
     setIsReady(true);
     channelRef.current?.send({ type: 'broadcast', event: 'player_ready', payload: { userId } });
+  };
+
+  const handleCancel = async () => {
+    channelRef.current?.send({ type: 'broadcast', event: 'player_canceled', payload: { userId } });
+    await cancelMatch(matchId); 
+    router.push('/online-battle');
   };
 
   const renderFinalResults = (finalMatchData) => {
@@ -208,159 +174,140 @@ export default function LivePvPBoard({ params }) {
     setGameStatus("waiting_for_opponent"); 
     const res = await submitMatchResults(matchId, userId, finalScore);
 
-    if (res.suddenDeath) {
-      channelRef.current?.send({ type: 'broadcast', event: 'sudden_death_started', payload: {} });
-      setGameStatus("playing");
-      setCurrentQIndex(matchData.questions.length); // Dynamically set to tie-breaker index
-      setQTimeLeft(30);
-      setQuestionStartTime(Date.now());
-    } else if (res.success && res.isComplete) {
-      channelRef.current?.send({ type: 'broadcast', event: 'match_completed', payload: { match: res.match } });
+    if (res.success && res.isComplete) {
+      channelRef.current?.send({ 
+        type: 'broadcast', 
+        event: 'match_completed', 
+        payload: { match: res.match } 
+      });
       renderFinalResults(res.match);
     }
   };
 
   const moveToNextQuestion = (currentScore) => {
+    // Standard questions are 0-6 (7 total). Index 7 is Sudden Death.
     setHiddenOptions([]);
     setDoubleJeopardyActive(false);
+    setTimerDuration(30);
+
+    const isSuddenDeathNext = currentQIndex === 6;
     
-    // Dynamically scale based on questions array instead of hardcoding 6
-    if (currentQIndex < matchData.questions.length - 1) {
+    if (currentQIndex < 6) {
       setCurrentQIndex(currentQIndex + 1);
-      setQTimeLeft(30);
       setQuestionStartTime(Date.now()); 
+    } else if (isSuddenDeathNext) {
+      // Check if Tie-breaker is needed
+      if (myScore === opponentScore) {
+        showBattleMessage("SUDDEN DEATH!");
+        setCurrentQIndex(7); // Go to tie-breaker
+        setQuestionStartTime(Date.now());
+      } else {
+        handleEndGame(currentScore);
+      }
     } else {
+      // Finished sudden death
       handleEndGame(currentScore);
     }
   };
 
   const handleTimeUp = async () => {
-    const { myScore: currentScore, currentQIndex: qIndex } = stateRef.current;
     setMyCombo(0);
-    setShowBonus(false);
-    
-    channelRef.current?.send({
-      type: 'broadcast', event: 'score_update', payload: { userId, score: currentScore, combo: 0 }
-    });
-    channelRef.current?.send({
-      type: 'broadcast', event: 'question_answered', payload: { userId }
-    });
-
-    if (qIndex >= matchData.questions.length) {
-      // Timeout on sudden death acts as a wrong answer
-      const res = await handleSuddenDeathAnswer(matchId, userId, false);
-      if (res.isComplete) {
-        channelRef.current?.send({ type: 'broadcast', event: 'match_completed', payload: { match: res.match } });
-        renderFinalResults(res.match);
-      } else {
-        setGameStatus("waiting_for_opponent");
-      }
-      return;
-    }
-
-    await savePlayerAnswer(matchId, userId, { questionIndex: qIndex, selectedOption: null, timeTaken: 30 });
-    moveToNextQuestion(currentScore);
+    channelRef.current?.send({ type: 'broadcast', event: 'score_update', payload: { userId, score: myScore, combo: 0 } });
+    await savePlayerAnswer(matchId, userId, { questionIndex: currentQIndex, selectedOption: null, timeTaken: timerDuration, pointsEarned: 0 });
+    moveToNextQuestion(myScore);
   };
 
   const handleAnswer = async (optionId) => {
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
     const isCorrect = matchData.questions[currentQIndex].correctAnswer === optionId;
-    const isSuddenDeathPhase = currentQIndex >= matchData.questions.length;
-
-    channelRef.current?.send({ type: 'broadcast', event: 'question_answered', payload: { userId } });
-
-    // --- SUDDEN DEATH LOGIC ---
-    if (isSuddenDeathPhase) {
-      const res = await handleSuddenDeathAnswer(matchId, userId, isCorrect);
-      if (res.isComplete) {
-        channelRef.current?.send({ type: 'broadcast', event: 'match_completed', payload: { match: res.match } });
-        renderFinalResults(res.match);
-      } else {
-        setGameStatus("waiting_for_opponent");
-      }
-      return;
-    }
-
-    // --- NORMAL LOGIC ---
+    
     let newScore = myScore;
     let newCombo = myCombo;
+    let pointsEarned = 0;
     
     if (isCorrect) {
-      newCombo += 1; 
-      let pointsAwarded = 10;
-      if (newCombo === 2) {
-        pointsAwarded = 12; setBonusText("Combo Streak! 1.2x Points!"); setShowBonus(true);
-      } else if (newCombo >= 3) {
-        pointsAwarded = 15; setBonusText("On Fire! 1.5x Points!"); setShowBonus(true);
-      }
+      newCombo += 1;
+      let multiplier = 1;
+      if (newCombo === 2) multiplier = 1.2;
+      if (newCombo >= 3) multiplier = 1.5;
+
+      let basePoints = doubleJeopardyActive ? 20 : 10;
+      pointsEarned = Math.floor(basePoints * multiplier);
+      newScore += pointsEarned;
       
-      if (doubleJeopardyActive) {
-        pointsAwarded *= 2; setBonusText("Double Jeopardy! 2x Points Earned!"); setShowBonus(true);
-      }
-      
-      newScore = myScore + pointsAwarded;
+      if (newCombo > 1) showBattleMessage(`${newCombo}x COMBO!`);
     } else {
-      newCombo = 0; 
-      setShowBonus(false);
+      newCombo = 0;
       if (doubleJeopardyActive) {
-        newScore = Math.max(0, myScore - 15); // Penalty
-        setBonusText("Double Jeopardy Failed! Points Lost."); setShowBonus(true);
-        setTimeout(() => setShowBonus(false), 2000);
+        pointsEarned = -10;
+        newScore -= 10;
+        showBattleMessage("Double Jeopardy Failed! -10pts");
       }
     }
 
     setMyScore(newScore);
     setMyCombo(newCombo);
-      
+    
     channelRef.current?.send({ type: 'broadcast', event: 'score_update', payload: { userId, score: newScore, combo: newCombo } });
 
     await savePlayerAnswer(matchId, userId, {
-      questionIndex: currentQIndex, selectedOption: optionId, timeTaken: Math.min(timeTaken, 30)
+      questionIndex: currentQIndex,
+      selectedOption: optionId,
+      timeTaken: Math.min(timeTaken, timerDuration),
+      pointsEarned: pointsEarned
     });
 
     moveToNextQuestion(newScore);
   };
 
   // --- POWER-UPS ---
-  const activateFiftyFifty = () => {
-    if (usedPowerUps.fiftyFifty || !matchData) return;
-    setUsedPowerUps(p => ({ ...p, fiftyFifty: true }));
+  const useFiftyFifty = () => {
+    if (!powerups.fifty) return;
     const currentQ = matchData.questions[currentQIndex];
-    const wrongOptions = currentQ.options.filter(o => o.id !== currentQ.correctAnswer);
-    const shuffledWrong = wrongOptions.sort(() => 0.5 - Math.random());
-    setHiddenOptions([shuffledWrong[0].id, shuffledWrong[1].id]);
+    const incorrect = currentQ.options.filter(o => o.id !== currentQ.correctAnswer);
+    const shuffled = incorrect.sort(() => 0.5 - Math.random());
+    setHiddenOptions([shuffled[0].id, shuffled[1].id]);
+    setPowerups(prev => ({ ...prev, fifty: false }));
+    channelRef.current?.send({ type: 'broadcast', event: 'powerup_used', payload: { userId, type: '50/50' } });
   };
 
-  const activateTimeFreeze = () => {
-    if (usedPowerUps.timeFreeze) return;
-    setUsedPowerUps(p => ({ ...p, timeFreeze: true }));
-    setIsTimeFrozen(true);
-    setBonusText("Time Frozen for 10s!"); setShowBonus(true);
-    setTimeout(() => { setIsTimeFrozen(false); setShowBonus(false); }, 10000);
+  const useTimeFreeze = () => {
+    if (!powerups.freeze) return;
+    setTimerDuration(45); // Adds 15 seconds locally
+    setPowerups(prev => ({ ...prev, freeze: false }));
+    channelRef.current?.send({ type: 'broadcast', event: 'powerup_used', payload: { userId, type: 'Time Freeze' } });
   };
 
-  const activateDoubleJeopardy = () => {
-    if (usedPowerUps.doubleJeopardy) return;
-    setUsedPowerUps(p => ({ ...p, doubleJeopardy: true }));
+  const useDoubleJeopardy = () => {
+    if (!powerups.double) return;
     setDoubleJeopardyActive(true);
-    setBonusText("Double Jeopardy Active! Make it count."); setShowBonus(true);
+    setPowerups(prev => ({ ...prev, double: false }));
+    channelRef.current?.send({ type: 'broadcast', event: 'powerup_used', payload: { userId, type: 'Double Jeopardy' } });
   };
 
-  // --- EMOTES ---
+  // --- EMOTES & UI FX ---
   const sendEmote = (emoji) => {
-    channelRef.current?.send({ type: 'broadcast', event: 'emote', payload: { emoji, userId } });
-    triggerEmoteDisplay(emoji, true);
+    triggerEmote(emoji, 'me');
+    channelRef.current?.send({ type: 'broadcast', event: 'emote', payload: { userId, emoji } });
   };
 
-  const triggerEmoteDisplay = (emoji, isMine) => {
+  const triggerEmote = (emoji, sender) => {
     const id = Date.now() + Math.random();
-    setFloatingEmotes(prev => [...prev, { id, emoji, isMine }]);
+    setActiveEmotes(prev => [...prev, { id, emoji, sender }]);
     setTimeout(() => {
-      setFloatingEmotes(prev => prev.filter(e => e.id !== id));
-    }, 2500);
+      setActiveEmotes(prev => prev.filter(e => e.id !== id));
+    }, 2000);
   };
 
-  if (gameStatus === "loading" || !matchData) return <div className="min-h-screen bg-slate-950 flex justify-center items-center text-white"><Loader2 className="animate-spin w-10 h-10 text-blue-500" /></div>;
+  const showBattleMessage = (msg) => {
+    setBattleMessage(msg);
+    setTimeout(() => setBattleMessage(""), 2500);
+  };
+
+  // Renders
+  if (gameStatus === "loading" || !matchData) {
+    return <div className="min-h-screen bg-slate-950 flex justify-center items-center text-white"><Loader2 className="animate-spin w-10 h-10 text-blue-500" /></div>;
+  }
 
   if (gameStatus === "waiting") {
     return (
@@ -370,11 +317,13 @@ export default function LivePvPBoard({ params }) {
            <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
         </div>
         <h2 className="text-2xl font-bold text-slate-200">Searching for Opponent...</h2>
+        <p className="text-slate-500 mt-2">Preparing the {matchData.category} arena.</p>
+        
         <div className="flex items-center gap-2 mt-6 px-4 py-2 bg-slate-900 border border-slate-700 rounded-full text-slate-300">
           <Clock size={16} className="text-blue-400" />
           <span>Timeout in: <span className="font-mono font-bold">{timeLeft}s</span></span>
         </div>
-        <button onClick={() => { cancelMatch(matchId); router.push('/online-battle'); }} className="mt-8 text-slate-400 hover:text-white transition">Cancel Matchmaking</button>
+        <button onClick={handleCancel} className="mt-8 text-slate-400 hover:text-white transition">Cancel Matchmaking</button>
       </div>
     );
   }
@@ -383,15 +332,32 @@ export default function LivePvPBoard({ params }) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white">
         <div className="bg-slate-900 border border-slate-700 p-10 rounded-3xl text-center max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-300">
+          <div className="w-20 h-20 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Swords size={40} />
+          </div>
           <h2 className="text-3xl font-black text-white mb-2">Match Found!</h2>
+          
           <div className="text-lg font-bold mb-8 flex justify-center items-center gap-3">
              <span className="text-blue-400">{userName}</span>
              <span className="text-slate-500">vs</span>
              <span className="text-red-400">{opponentName}</span>
           </div>
-          <button onClick={handleReady} disabled={isReady} className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${isReady ? "bg-green-600/20 text-green-400 border border-green-500/50" : "bg-blue-600 hover:bg-blue-500 text-white"}`}>
-            {isReady ? "Waiting for opponent..." : "I'm Ready"}
-          </button>
+
+          <div className="flex flex-col gap-4">
+            <button 
+              onClick={handleReady} disabled={isReady}
+              className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${isReady ? "bg-green-600/20 text-green-400 border border-green-500/50 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)]"}`}
+            >
+              {isReady ? "Waiting for opponent..." : "I'm Ready"}
+            </button>
+            <button 
+              onClick={handleCancel} disabled={isReady}
+              className="w-full py-4 rounded-xl font-bold text-lg bg-slate-800 hover:bg-red-500/20 hover:text-red-400 text-slate-300 border border-slate-700 hover:border-red-500/50 transition-all flex justify-center items-center gap-2 disabled:opacity-50"
+            >
+              <X size={20} /> Leave Arena
+            </button>
+          </div>
+          {opponentReady && <p className="mt-6 text-green-400 font-medium animate-pulse">{opponentName} is Ready!</p>}
         </div>
       </div>
     );
@@ -410,125 +376,118 @@ export default function LivePvPBoard({ params }) {
   if (gameStatus === "ended") {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white">
-        <div className="bg-slate-900 border border-slate-700 p-10 rounded-3xl text-center max-w-lg w-full">
+        <div className="bg-slate-900 border border-slate-700 p-10 rounded-3xl text-center max-w-lg w-full relative overflow-hidden">
+          {myScore === opponentScore && (
+             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 to-orange-500"></div>
+          )}
           <h1 className="text-4xl font-black mb-8 text-white">Battle Concluded!</h1>
+          
           <div className="flex justify-around items-center mb-8">
              <div className="text-center">
                <p className="text-slate-400 text-sm mb-1">{userName}</p>
                <p className="text-4xl font-bold text-blue-400">{myScore}</p>
              </div>
+             <div className="h-16 w-px bg-slate-700"></div>
              <div className="text-center">
                <p className="text-slate-400 text-sm mb-1">{opponentName}</p>
                <p className="text-4xl font-bold text-red-400">{opponentScore}</p>
              </div>
           </div>
-          <button onClick={() => router.push('/online-battle')} className="w-full py-4 bg-slate-800 text-white rounded-xl font-bold border border-slate-600">Return to Lobby</button>
+
+          <div className={`py-4 rounded-xl mb-8 ${myScore > opponentScore ? 'bg-green-500/10 text-green-400 border border-green-500/20' : myScore < opponentScore ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'}`}>
+             <h2 className="text-3xl font-bold tracking-widest uppercase">
+               {myScore > opponentScore ? "Victory" : myScore < opponentScore ? "Defeat" : "Draw"}
+             </h2>
+          </div>
+          
+          <button onClick={() => router.push('/online-battle')} className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-bold transition border border-slate-600">
+            Return to Lobby
+          </button>
         </div>
       </div>
     );
   }
 
-  // Ensure we safely map the question (especially for Sudden Death)
-  const isSuddenDeath = currentQIndex >= matchData.questions.length;
-  // If sudden death doesn't append an object, use the last question as fallback so it doesn't crash UI
-  const currentQ = matchData.questions[currentQIndex] || matchData.questions[matchData.questions.length - 1]; 
+  const currentQ = matchData.questions[currentQIndex];
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 pt-10 text-white relative overflow-hidden">
+    <div className="min-h-screen bg-slate-950 p-4 pt-10 text-white overflow-hidden relative">
       
-      {/* Emotes Overlay */}
-      {floatingEmotes.map(emote => (
-        <div key={emote.id} className={`fixed text-4xl pointer-events-none z-50 animate-bounce transition-all duration-1000 ease-out translate-y-[-100px] opacity-0 ${emote.isMine ? 'right-10 bottom-24' : 'left-10 top-24'}`} style={{ animation: 'floatUp 2.5s forwards' }}>
+      {/* Floating Battle Messages */}
+      {battleMessage && (
+        <div className="absolute top-32 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+          <div className="bg-blue-600/90 text-white px-6 py-2 rounded-full font-black text-xl shadow-[0_0_20px_rgba(37,99,235,0.6)]">
+            {battleMessage}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Emotes Layer */}
+      {activeEmotes.map(emote => (
+        <div key={emote.id} className={`absolute z-40 text-4xl animate-in slide-in-from-bottom-10 fade-in duration-500 ease-out ${emote.sender === 'me' ? 'left-10 bottom-32' : 'right-10 top-32'}`}>
           {emote.emoji}
         </div>
       ))}
 
-      {/* Opponent Answered Notification */}
-      {opponentNotification && (
-        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-blue-600/90 text-white px-6 py-2 rounded-full shadow-lg z-50 animate-in slide-in-from-top-4 fade-in duration-300 font-bold border border-blue-400">
-          {opponentNotification}
-        </div>
-      )}
-
-      {/* Bonus Banner Div */}
-      {showBonus && (
-        <div className="fixed top-6 right-6 bg-gradient-to-r from-orange-600 to-red-500 text-white px-5 py-3 rounded-xl shadow-[0_0_20px_rgba(234,88,12,0.4)] border border-orange-400 flex items-center gap-3 z-50 animate-in slide-in-from-right-8 fade-in duration-300">
-          <Flame className="w-6 h-6 animate-pulse text-yellow-300" />
-          <div className="font-bold text-sm tracking-wide">{bonusText}</div>
-        </div>
-      )}
-
-      {/* Header Board */}
-      <div className={`max-w-4xl mx-auto flex justify-between items-center bg-slate-900/50 backdrop-blur p-4 rounded-2xl border ${isSuddenDeath ? 'border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)]' : 'border-slate-700/50'} mb-4 sticky top-4 z-10`}>
+      <div className="max-w-4xl mx-auto flex justify-between items-center bg-slate-900/50 backdrop-blur p-4 rounded-2xl border border-slate-700/50 mb-8 sticky top-4 z-10">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center border border-blue-500/50"><span className="font-bold text-blue-400">P1</span></div>
+          <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center border border-blue-500/50 relative">
+             <span className="font-bold text-blue-400">P1</span>
+             {myCombo >= 2 && <span className="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-1 rounded animate-pulse">{myCombo}x</span>}
+          </div>
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{userName}</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-black text-blue-400 leading-none">{myScore}</p>
-            </div>
-          </div>
-        </div>
-        <div className={`text-2xl font-black italic ${isSuddenDeath ? 'text-red-500 animate-pulse' : 'text-slate-600'}`}>
-          {isSuddenDeath ? "SUDDEN DEATH" : "VS"}
-        </div>
-        <div className="flex items-center gap-4 text-right">
-          <div className="flex flex-col items-end">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{opponentName}</p>
-            <div className="flex items-baseline gap-2">
-              <p className="text-2xl font-black text-red-400 leading-none">{opponentScore}</p>
-            </div>
-          </div>
-          <div className="w-12 h-12 rounded-full bg-red-600/20 flex items-center justify-center border border-red-500/50"><span className="font-bold text-red-400">P2</span></div>
-        </div>
-      </div>
-
-      {/* Lifelines Bar (Disabled during Sudden Death) */}
-      {!isSuddenDeath && (
-        <div className="max-w-4xl mx-auto mb-6 flex justify-center gap-4">
-          <button onClick={activateFiftyFifty} disabled={usedPowerUps.fiftyFifty} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition ${usedPowerUps.fiftyFifty ? 'bg-slate-800 text-slate-600' : 'bg-purple-600/20 text-purple-400 border border-purple-500/50 hover:bg-purple-600/40'}`}>
-            <DivideCircle size={16} /> 50/50
-          </button>
-          <button onClick={activateTimeFreeze} disabled={usedPowerUps.timeFreeze} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition ${usedPowerUps.timeFreeze ? 'bg-slate-800 text-slate-600' : 'bg-cyan-600/20 text-cyan-400 border border-cyan-500/50 hover:bg-cyan-600/40'}`}>
-            <Hourglass size={16} /> Freeze Time
-          </button>
-          <button onClick={activateDoubleJeopardy} disabled={usedPowerUps.doubleJeopardy} className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition ${usedPowerUps.doubleJeopardy ? 'bg-slate-800 text-slate-600' : 'bg-orange-600/20 text-orange-400 border border-orange-500/50 hover:bg-orange-600/40'}`}>
-            <Zap size={16} /> 2x Jeopardy
-          </button>
-        </div>
-      )}
-
-      {/* Main Question Card */}
-      <div className={`max-w-4xl mx-auto bg-slate-900 border rounded-3xl p-8 shadow-2xl relative overflow-hidden ${isSuddenDeath ? 'border-red-600 bg-red-950/20' : 'border-slate-700'}`}>
-        {!isSuddenDeath && (
-          <div className="absolute top-0 left-0 h-1 bg-slate-800 w-full">
-            <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${((currentQIndex) / matchData.questions.length) * 100}%` }}></div>
-          </div>
-        )}
-
-        <div className="flex justify-between items-start mb-8 mt-4">
-          <div>
-            <div className={`inline-flex items-center gap-2 px-2 py-1 rounded border mb-3 text-xs font-bold uppercase tracking-wider ${isSuddenDeath ? 'bg-red-900/50 border-red-500 text-red-300' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-               {isSuddenDeath ? "TIE-BREAKER" : currentQ.subject}
-            </div>
-            <p className="text-slate-500 font-medium">Question {currentQIndex + 1} {isSuddenDeath ? "" : `of ${matchData.questions.length}`}</p>
-          </div>
-          
-          {/* Custom In-line Timer */}
-          <div className={`flex items-center justify-center w-14 h-14 rounded-full border-4 font-black text-xl ${isTimeFrozen ? 'border-cyan-500 text-cyan-400 animate-pulse' : qTimeLeft <= 5 ? 'border-red-500 text-red-500 animate-bounce' : 'border-blue-500 text-blue-400'}`}>
-            {qTimeLeft}
+            <p className="text-2xl font-black text-blue-400 leading-none">{myScore}</p>
           </div>
         </div>
         
-        <h2 className="text-2xl font-semibold mb-10 leading-relaxed text-slate-100">{currentQ.text}</h2>
+        <div className="text-2xl font-black text-slate-600 italic">VS</div>
+        
+        <div className="flex items-center gap-4 text-right">
+          <div>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{opponentName}</p>
+            <p className="text-2xl font-black text-red-400 leading-none">{opponentScore}</p>
+          </div>
+          <div className="w-12 h-12 rounded-full bg-red-600/20 flex items-center justify-center border border-red-500/50 relative">
+             <span className="font-bold text-red-400">P2</span>
+             {opponentCombo >= 2 && <span className="absolute -top-2 -left-2 bg-yellow-500 text-black text-xs font-bold px-1 rounded animate-pulse">{opponentCombo}x</span>}
+          </div>
+        </div>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="max-w-4xl mx-auto bg-slate-900 border border-slate-700 rounded-3xl p-8 shadow-2xl relative">
+        <div className="absolute top-0 left-0 h-1 bg-slate-800 w-full">
+           <div className={`h-full transition-all duration-300 ${currentQIndex === 7 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${((currentQIndex) / 7) * 100}%` }}></div>
+        </div>
+
+        <div className="flex justify-between items-start mb-8 mt-4">
+          <div>
+            <div className={`inline-flex items-center gap-2 px-2 py-1 rounded border mb-3 text-xs font-bold uppercase tracking-wider ${currentQIndex === 7 ? 'bg-red-900/30 border-red-500/50 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+               {currentQIndex === 7 ? '🔥 TIE-BREAKER' : currentQ.subject}
+            </div>
+            <p className="text-slate-500 font-medium">
+              {currentQIndex === 7 ? "Sudden Death" : `Question ${currentQIndex + 1} of 7`}
+            </p>
+          </div>
+          
+          <PvPTimer key={`${currentQIndex}-${timerDuration}`} duration={timerDuration} questionIndex={currentQIndex} onTimeUp={handleTimeUp} />
+        </div>
+        
+        <h2 className="text-2xl font-semibold mb-10 leading-relaxed text-slate-100">
+          {doubleJeopardyActive && <span className="text-yellow-400 font-black mr-2">[2X POINTS]</span>}
+          {currentQ.text}
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           {currentQ.options.map((opt) => {
-            if (hiddenOptions.includes(opt.id)) return null; // Hidden by 50/50
+            if (hiddenOptions.includes(opt.id)) return <div key={opt.id} className="p-6 border-2 border-slate-800/50 bg-slate-900/30 rounded-2xl opacity-20 cursor-not-allowed"></div>;
             return (
-              <button key={opt.id} onClick={() => handleAnswer(opt.id)} className={`group relative bg-slate-950 border-2 border-slate-800 p-6 rounded-2xl text-left transition-all duration-200 shadow-sm hover:shadow-md ${doubleJeopardyActive ? 'hover:border-orange-500 hover:bg-orange-950/30' : 'hover:border-blue-500 hover:bg-slate-900'}`}>
+              <button
+                key={opt.id} onClick={() => handleAnswer(opt.id)}
+                className={`group relative bg-slate-950 border-2 border-slate-800 hover:border-blue-500 hover:bg-slate-900 p-6 rounded-2xl text-left transition-all duration-200 shadow-sm hover:shadow-md ${doubleJeopardyActive ? 'hover:border-yellow-500' : ''}`}
+              >
                 <div className="flex items-start gap-4">
-                  <span className={`flex-shrink-0 w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-slate-500 transition-colors ${doubleJeopardyActive ? 'group-hover:bg-orange-500/20 group-hover:text-orange-400' : 'group-hover:bg-blue-500/20 group-hover:text-blue-400'}`}>
+                  <span className={`flex-shrink-0 w-8 h-8 rounded-full bg-slate-800 group-hover:bg-blue-500/20 group-hover:text-blue-400 flex items-center justify-center font-bold text-slate-500 transition-colors ${doubleJeopardyActive ? 'group-hover:text-yellow-400 group-hover:bg-yellow-500/20' : ''}`}>
                     {opt.id}
                   </span> 
                   <span className="text-lg text-slate-300 group-hover:text-white pt-1">{opt.text}</span>
@@ -537,25 +496,30 @@ export default function LivePvPBoard({ params }) {
             )
           })}
         </div>
-      </div>
 
-      {/* Emotes Bar */}
-      <div className="fixed bottom-6 right-6 flex items-center gap-2 bg-slate-900/80 backdrop-blur-md p-2 rounded-full border border-slate-700 shadow-xl z-50">
-         <SmilePlus size={20} className="text-slate-400 ml-2" />
-         <div className="w-px h-6 bg-slate-700 mx-1"></div>
-         {['🤯', '🚀', '😭', '🎯'].map(emoji => (
-           <button key={emoji} onClick={() => sendEmote(emoji)} className="text-2xl hover:scale-125 transition-transform p-1">
-             {emoji}
-           </button>
-         ))}
+        {/* Action Bar (Powerups & Emotes) */}
+        <div className="flex flex-col md:flex-row justify-between items-center pt-6 border-t border-slate-800 gap-4">
+          <div className="flex gap-2">
+            <button onClick={useFiftyFifty} disabled={!powerups.fifty} className="flex items-center gap-1 px-3 py-2 bg-slate-800 rounded-lg text-sm font-bold text-slate-300 hover:bg-blue-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition">
+               <Target size={16}/> 50/50
+            </button>
+            <button onClick={useTimeFreeze} disabled={!powerups.freeze} className="flex items-center gap-1 px-3 py-2 bg-slate-800 rounded-lg text-sm font-bold text-slate-300 hover:bg-blue-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition">
+               <Snowflake size={16}/> Freeze
+            </button>
+            <button onClick={useDoubleJeopardy} disabled={!powerups.double} className="flex items-center gap-1 px-3 py-2 bg-slate-800 rounded-lg text-sm font-bold text-slate-300 hover:bg-yellow-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition">
+               <Zap size={16}/> 2x Risk
+            </button>
+          </div>
+          
+          <div className="flex gap-2 bg-slate-950 p-2 rounded-full border border-slate-800">
+            {EMOTES.map(e => (
+              <button key={e} onClick={() => sendEmote(e)} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-800 text-xl transition">
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
-
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes floatUp {
-          0% { transform: translateY(0) scale(0.5); opacity: 1; }
-          100% { transform: translateY(-200px) scale(1.5); opacity: 0; }
-        }
-      `}} />
     </div>
   );
 }

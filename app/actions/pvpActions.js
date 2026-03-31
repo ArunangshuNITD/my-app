@@ -10,13 +10,13 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 export async function generatePvPQuestions(mode, category) {
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   let promptContext = mode === "exam" 
-    ? `Generate a balanced mix of 7 questions for the entire ${category} syllabus.`
-    : `Generate 7 questions specifically for ${category}. Focus strictly on this subject.`;
+    ? `Generate a balanced mix of 7 questions for the entire ${category} syllabus, PLUS 1 extremely hard sudden-death tie-breaker question.`
+    : `Generate 7 questions specifically for ${category}. Focus strictly on this subject, PLUS 1 extremely hard sudden-death tie-breaker question.`;
 
   const prompt = `
     You are an expert examiner for Indian competitive exams.
     ${promptContext}
-    Provide 2 Easy, 3 Medium, and 2 Hard questions.
+    Provide 2 Easy, 3 Medium, and 2 Hard questions for the main set. The 8th question MUST be "hard" difficulty and have "Tie-Breaker" as the subject.
     Return ONLY a raw JSON array of objects (no markdown, no backticks). Structure exactly like this:
     [
       {
@@ -97,7 +97,8 @@ export async function savePlayerAnswer(matchId, userId, responseObj) {
       questionIndex: responseObj.questionIndex,
       selectedOption: responseObj.selectedOption,
       timeTaken: responseObj.timeTaken,
-      isCorrect: false // Will be evaluated at the end
+      pointsEarned: responseObj.pointsEarned || 0,
+      isCorrect: responseObj.pointsEarned > 0
     });
 
     match.markModified(playerKey);
@@ -117,13 +118,12 @@ export async function handleSuddenDeathAnswer(matchId, userId, responseObj) {
     const isPlayer1 = match.player1.userId === userId;
     const playerKey = isPlayer1 ? "player1" : "player2";
 
-    // Appending a sudden death response to the responses array 
-    // or you can map it to a specific suddenDeath schema field if you have one.
     match[playerKey].responses.push({
-      questionIndex: responseObj.questionIndex || 999, // High index to denote sudden death
+      questionIndex: responseObj.questionIndex || 7, // Index 7 is the 8th question (Tie-Breaker)
       selectedOption: responseObj.selectedOption,
       timeTaken: responseObj.timeTaken,
-      isCorrect: responseObj.isCorrect || false,
+      pointsEarned: responseObj.pointsEarned || 0,
+      isCorrect: responseObj.pointsEarned > 0,
       isSuddenDeath: true 
     });
 
@@ -166,35 +166,11 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
 
       if (finalMatch) {
         let p1Score = 0; let p2Score = 0;
-        let p1Combo = 0; let p2Combo = 0; 
 
-        // Calculate Player 1 Score with Multipliers
-        finalMatch.player1.responses.forEach(res => {
-          const actualAnswer = finalMatch.questions[res.questionIndex]?.correctAnswer;
-          if (res.selectedOption === actualAnswer) { 
-            res.isCorrect = true; 
-            p1Combo += 1;
-            if (p1Combo === 1) p1Score += 10;
-            else if (p1Combo === 2) p1Score += 12; // 1.2x
-            else if (p1Combo >= 3) p1Score += 15;  // 1.5x
-          } else {
-            p1Combo = 0; // Reset streak on wrong answer/timeout
-          }
-        });
-
-        // Calculate Player 2 Score with Multipliers
-        finalMatch.player2.responses.forEach(res => {
-          const actualAnswer = finalMatch.questions[res.questionIndex]?.correctAnswer;
-          if (res.selectedOption === actualAnswer) { 
-            res.isCorrect = true; 
-            p2Combo += 1;
-            if (p2Combo === 1) p2Score += 10;
-            else if (p2Combo === 2) p2Score += 12; // 1.2x
-            else if (p2Combo >= 3) p2Score += 15;  // 1.5x
-          } else {
-            p2Combo = 0; // Reset streak on wrong answer/timeout
-          }
-        });
+        // Tally scores directly from the pointsEarned property. 
+        // This implicitly handles Combos, Double Jeopardy, and Sudden Death penalties without complex server logic.
+        finalMatch.player1.responses.forEach(res => { p1Score += res.pointsEarned || 0; });
+        finalMatch.player2.responses.forEach(res => { p2Score += res.pointsEarned || 0; });
 
         finalMatch.player1.score = p1Score;
         finalMatch.player2.score = p2Score;

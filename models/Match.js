@@ -4,6 +4,7 @@ const ResponseSchema = new mongoose.Schema({
   questionIndex: Number,
   selectedOption: { type: String, default: null }, 
   timeTaken: Number,
+  pointsEarned: { type: Number, default: 0 },
   isCorrect: { type: Boolean, default: false }
 }, { _id: false });
 
@@ -31,7 +32,7 @@ const MatchSchema = new mongoose.Schema({
   player2: { type: PlayerSchema, default: () => ({ userId: null, name: null, score: 0, finished: false, responses: [] }) },
   questions: [QuestionSchema],
   winner: { type: String, default: null },
-  pointsAwarded: { type: Boolean, default: false } // Safety flag for the store system
+  pointsAwarded: { type: Boolean, default: false } 
 }, { timestamps: true });
 
 export default mongoose.models.Match || mongoose.model("Match", MatchSchema);
