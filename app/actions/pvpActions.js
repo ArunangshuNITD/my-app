@@ -107,6 +107,35 @@ export async function savePlayerAnswer(matchId, userId, responseObj) {
   }
 }
 
+// NEW FUNCTION: Added to fix Vercel Build Error
+export async function handleSuddenDeathAnswer(matchId, userId, responseObj) {
+  await connectDB();
+  try {
+    const match = await Match.findById(matchId);
+    if (!match) return { success: false };
+    
+    const isPlayer1 = match.player1.userId === userId;
+    const playerKey = isPlayer1 ? "player1" : "player2";
+
+    // Appending a sudden death response to the responses array 
+    // or you can map it to a specific suddenDeath schema field if you have one.
+    match[playerKey].responses.push({
+      questionIndex: responseObj.questionIndex || 999, // High index to denote sudden death
+      selectedOption: responseObj.selectedOption,
+      timeTaken: responseObj.timeTaken,
+      isCorrect: responseObj.isCorrect || false,
+      isSuddenDeath: true 
+    });
+
+    match.markModified(playerKey);
+    await match.save();
+    return { success: true };
+  } catch (error) {
+    console.error("Error saving sudden death answer:", error);
+    return { success: false };
+  }
+}
+
 export async function submitMatchResults(matchId, userId, clientReportedScore) {
   await connectDB();
   try {
