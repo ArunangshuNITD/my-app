@@ -2,7 +2,7 @@
 import { useEffect, useState, use, useRef } from "react"; 
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
-import { submitMatchResults, cancelMatch, savePlayerAnswer, handleSuddenDeathAnswer } from "@/app/actions/pvpActions"; 
+import {submitMatchResults, cancelMatch, savePlayerAnswer, handleSuddenDeathAnswer } from "@/actions/pvpActions";
 import { Loader2, Swords, X, Clock, Flame, Zap, Hourglass, DivideCircle, SmilePlus } from "lucide-react";
 
 export default function LivePvPBoard({ params }) {
