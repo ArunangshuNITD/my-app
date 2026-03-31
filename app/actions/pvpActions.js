@@ -39,6 +39,7 @@ export async function generatePvPQuestions(mode, category) {
     const jsonStr = result.response.text().replace(/```json|```/g, "").trim();
     return JSON.parse(jsonStr);
   } catch (error) {
+    console.error("Failed to generate questions:", error);
     return null; 
   }
 }
@@ -48,13 +49,19 @@ export async function findOrStartMatch(userId, userName, mode, category) {
 
   let match = await Match.findOneAndUpdate(
     { 
-      status: "waiting", mode, category,
-      "player2.userId": null, "player1.userId": { $ne: userId } 
+      status: "waiting", 
+      mode, 
+      category,
+      "player2.userId": null, 
+      "player1.userId": { $ne: userId } 
     },
     { 
       $set: { 
-        "player2.userId": userId, "player2.name": userName, 
-        "player2.score": 0, "player2.finished": false, "player2.responses": [] 
+        "player2.userId": userId, 
+        "player2.name": userName, 
+        "player2.score": 0, 
+        "player2.finished": false, 
+        "player2.responses": [] 
       } 
     },
     { new: true }
@@ -66,7 +73,9 @@ export async function findOrStartMatch(userId, userName, mode, category) {
   if (!questions) return { success: false, message: "Failed to generate arena." };
 
   match = await Match.create({
-    mode, category, status: "waiting",
+    mode, 
+    category, 
+    status: "waiting",
     player1: { userId, name: userName, score: 0, finished: false, responses: [] },
     player2: { userId: null, name: null, score: 0, finished: false, responses: [] },
     questions: questions
@@ -88,7 +97,7 @@ export async function savePlayerAnswer(matchId, userId, responseObj) {
       questionIndex: responseObj.questionIndex,
       selectedOption: responseObj.selectedOption,
       timeTaken: responseObj.timeTaken,
-      isCorrect: false 
+      isCorrect: false // Will be evaluated at the end
     });
 
     match.markModified(playerKey);
@@ -128,7 +137,7 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
 
       if (finalMatch) {
         let p1Score = 0; let p2Score = 0;
-        let p1Combo = 0; let p2Combo = 0; // Track combos for final calculation
+        let p1Combo = 0; let p2Combo = 0; 
 
         // Calculate Player 1 Score with Multipliers
         finalMatch.player1.responses.forEach(res => {
@@ -165,7 +174,11 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
         else if (p2Score > p1Score) finalMatch.winner = finalMatch.player2.userId;
         else finalMatch.winner = "draw";
 
+        // Mark paths as modified just in case embedded sub-documents didn't trigger
+        finalMatch.markModified('player1');
+        finalMatch.markModified('player2');
         await finalMatch.save();
+        
         await awardMatchPoints(finalMatch, p1Score, p2Score);
 
         return { success: true, isComplete: true, match: JSON.parse(JSON.stringify(finalMatch)) };
@@ -178,6 +191,7 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
     return { success: true, isComplete: false };
     
   } catch (error) {
+    console.error("Failed to submit match results:", error);
     return { success: false };
   }
 }
@@ -187,11 +201,15 @@ export async function cancelMatch(matchId) {
   try {
     const match = await Match.findById(matchId);
     if (match && match.status === "waiting") {
-      match.status = "cancelled"; await match.save();
+      match.status = "cancelled"; 
+      await match.save();
       return { success: true, message: "Match cancelled." };
     }
-    return { success: false };
-  } catch (error) { return { success: false }; }
+    return { success: false, message: "Match could not be cancelled." };
+  } catch (error) { 
+    console.error("Error cancelling match:", error);
+    return { success: false }; 
+  }
 }
 
 async function awardMatchPoints(match, p1Score, p2Score) {
