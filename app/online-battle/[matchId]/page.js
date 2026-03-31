@@ -2,7 +2,7 @@
 import { useEffect, useState, use, useRef } from "react"; 
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
-import {submitMatchResults, cancelMatch, savePlayerAnswer, handleSuddenDeathAnswer } from "@/app/actions/pvpActions";
+import { submitMatchResults, cancelMatch, savePlayerAnswer, handleSuddenDeathAnswer } from "@/app/actions/pvpActions";
 import { Loader2, Swords, X, Clock, Flame, Zap, Hourglass, DivideCircle, SmilePlus } from "lucide-react";
 
 export default function LivePvPBoard({ params }) {
@@ -33,9 +33,9 @@ export default function LivePvPBoard({ params }) {
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
   
-  // Built-in Timer State
+  // Timer States
   const [qTimeLeft, setQTimeLeft] = useState(30);
-  const [matchmakingTimeLeft, setMatchmakingTimeLeft] = useState(60);
+  const [timeLeft, setTimeLeft] = useState(60); // Matchmaking timer
   const [questionStartTime, setQuestionStartTime] = useState(0);
 
   // Power-Ups State
@@ -48,12 +48,16 @@ export default function LivePvPBoard({ params }) {
   const [floatingEmotes, setFloatingEmotes] = useState([]);
 
   const channelRef = useRef(null);
+  // Ref to hold the latest game state to prevent stale closures in timers
+  const stateRef = useRef({ myScore, currentQIndex });
+  useEffect(() => { stateRef.current = { myScore, currentQIndex }; }, [myScore, currentQIndex]);
 
   useEffect(() => {
     const fetchMatch = async () => {
       try {
         const res = await fetch(`/api/matches/${matchId}`); 
         const data = await res.json();
+        
         if (data.success && data.match) {
           setMatchData(data.match); 
           if (data.match.status === "playing") setGameStatus("playing");
@@ -67,6 +71,31 @@ export default function LivePvPBoard({ params }) {
     };
     fetchMatch();
   }, [matchId, userId, router]);
+
+  // RESTORED: Fallback Polling (Crucial for preventing endless waiting screens)
+  useEffect(() => {
+    let pollInterval;
+    if (gameStatus === "waiting" || gameStatus === "waiting_for_opponent") {
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/matches/${matchId}`);
+          const data = await res.json();
+          
+          if (data.success && data.match) {
+            if (gameStatus === "waiting" && data.match.player2 && data.match.player2.userId) {
+              const oppName = data.match.player1.userId === userId ? data.match.player2.name : data.match.player1.name;
+              setOpponentName(oppName || "Opponent");
+              setGameStatus("opponent_found");
+            }
+            if (gameStatus === "waiting_for_opponent" && data.match.status === "completed") {
+              renderFinalResults(data.match);
+            }
+          }
+        } catch (err) { console.error("Polling error:", err); }
+      }, 3000); 
+    }
+    return () => clearInterval(pollInterval);
+  }, [gameStatus, matchId, userId]);
 
   // WebSocket Listeners
   useEffect(() => {
@@ -91,7 +120,7 @@ export default function LivePvPBoard({ params }) {
       })
       .on('broadcast', { event: 'sudden_death_started' }, () => {
         setGameStatus("playing");
-        setCurrentQIndex(7); // Jump to the 8th Tie-Breaker question
+        setCurrentQIndex(matchData?.questions?.length || 7); 
         setQTimeLeft(30);
         setQuestionStartTime(Date.now());
       })
@@ -104,6 +133,12 @@ export default function LivePvPBoard({ params }) {
       .on('broadcast', { event: 'player_ready' }, (payload) => {
         if (payload.userId !== userId) setOpponentReady(true);
       })
+      .on('broadcast', { event: 'player_canceled' }, (payload) => {
+        if (payload.userId !== userId) {
+          alert("Your opponent canceled the match.");
+          router.push('/online-battle');
+        }
+      })
       .on('broadcast', { event: 'match_completed' }, (payload) => {
         renderFinalResults(payload.match);
       })
@@ -114,13 +149,13 @@ export default function LivePvPBoard({ params }) {
       });
 
     return () => { supabase.removeChannel(channel); };
-  }, [matchId, userId, userName, opponentName, router]); 
+  }, [matchId, userId, userName, opponentName, router, matchData]); 
 
   // Matchmaking Timer
   useEffect(() => {
     if (gameStatus !== "waiting") return;
     const timer = setInterval(() => {
-      setMatchmakingTimeLeft((prev) => {
+      setTimeLeft((prev) => {
         if (prev <= 1) { clearInterval(timer); handleMatchmakingTimeout(); return 0; }
         return prev - 1;
       });
@@ -128,17 +163,21 @@ export default function LivePvPBoard({ params }) {
     return () => clearInterval(timer);
   }, [gameStatus]);
 
-  // In-Game Question Timer (Supports Time Freeze)
+  // FIXED: Safe In-Game Question Timer
   useEffect(() => {
     if (gameStatus !== "playing" || isTimeFrozen) return;
     const timer = setInterval(() => {
-      setQTimeLeft((prev) => {
-        if (prev <= 1) { clearInterval(timer); handleTimeUp(); return 0; }
-        return prev - 1;
-      });
+      setQTimeLeft((prev) => prev > 0 ? prev - 1 : 0);
     }, 1000);
     return () => clearInterval(timer);
   }, [gameStatus, isTimeFrozen, currentQIndex]);
+
+  // Trigger timeout securely via effect to prevent stale closures
+  useEffect(() => {
+    if (qTimeLeft === 0 && gameStatus === "playing" && !isTimeFrozen) {
+      handleTimeUp();
+    }
+  }, [qTimeLeft, gameStatus, isTimeFrozen]);
 
   const handleMatchmakingTimeout = async () => {
     await cancelMatch(matchId); 
@@ -170,10 +209,9 @@ export default function LivePvPBoard({ params }) {
     const res = await submitMatchResults(matchId, userId, finalScore);
 
     if (res.suddenDeath) {
-      // Tie Breaker Activated!
       channelRef.current?.send({ type: 'broadcast', event: 'sudden_death_started', payload: {} });
       setGameStatus("playing");
-      setCurrentQIndex(7); // Question 8
+      setCurrentQIndex(matchData.questions.length); // Dynamically set to tie-breaker index
       setQTimeLeft(30);
       setQuestionStartTime(Date.now());
     } else if (res.success && res.isComplete) {
@@ -186,8 +224,8 @@ export default function LivePvPBoard({ params }) {
     setHiddenOptions([]);
     setDoubleJeopardyActive(false);
     
-    // Total standard questions is 7 (indexes 0 to 6). 
-    if (currentQIndex < 6) {
+    // Dynamically scale based on questions array instead of hardcoding 6
+    if (currentQIndex < matchData.questions.length - 1) {
       setCurrentQIndex(currentQIndex + 1);
       setQTimeLeft(30);
       setQuestionStartTime(Date.now()); 
@@ -197,17 +235,18 @@ export default function LivePvPBoard({ params }) {
   };
 
   const handleTimeUp = async () => {
+    const { myScore: currentScore, currentQIndex: qIndex } = stateRef.current;
     setMyCombo(0);
     setShowBonus(false);
     
     channelRef.current?.send({
-      type: 'broadcast', event: 'score_update', payload: { userId, score: myScore, combo: 0 }
+      type: 'broadcast', event: 'score_update', payload: { userId, score: currentScore, combo: 0 }
     });
     channelRef.current?.send({
       type: 'broadcast', event: 'question_answered', payload: { userId }
     });
 
-    if (currentQIndex === 7) {
+    if (qIndex >= matchData.questions.length) {
       // Timeout on sudden death acts as a wrong answer
       const res = await handleSuddenDeathAnswer(matchId, userId, false);
       if (res.isComplete) {
@@ -219,18 +258,19 @@ export default function LivePvPBoard({ params }) {
       return;
     }
 
-    await savePlayerAnswer(matchId, userId, { questionIndex: currentQIndex, selectedOption: null, timeTaken: 30 });
-    moveToNextQuestion(myScore);
+    await savePlayerAnswer(matchId, userId, { questionIndex: qIndex, selectedOption: null, timeTaken: 30 });
+    moveToNextQuestion(currentScore);
   };
 
   const handleAnswer = async (optionId) => {
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
     const isCorrect = matchData.questions[currentQIndex].correctAnswer === optionId;
+    const isSuddenDeathPhase = currentQIndex >= matchData.questions.length;
 
     channelRef.current?.send({ type: 'broadcast', event: 'question_answered', payload: { userId } });
 
     // --- SUDDEN DEATH LOGIC ---
-    if (currentQIndex === 7) {
+    if (isSuddenDeathPhase) {
       const res = await handleSuddenDeathAnswer(matchId, userId, isCorrect);
       if (res.isComplete) {
         channelRef.current?.send({ type: 'broadcast', event: 'match_completed', payload: { match: res.match } });
@@ -287,7 +327,6 @@ export default function LivePvPBoard({ params }) {
     setUsedPowerUps(p => ({ ...p, fiftyFifty: true }));
     const currentQ = matchData.questions[currentQIndex];
     const wrongOptions = currentQ.options.filter(o => o.id !== currentQ.correctAnswer);
-    // Hide randomly selected 2 wrong options
     const shuffledWrong = wrongOptions.sort(() => 0.5 - Math.random());
     setHiddenOptions([shuffledWrong[0].id, shuffledWrong[1].id]);
   };
@@ -333,8 +372,9 @@ export default function LivePvPBoard({ params }) {
         <h2 className="text-2xl font-bold text-slate-200">Searching for Opponent...</h2>
         <div className="flex items-center gap-2 mt-6 px-4 py-2 bg-slate-900 border border-slate-700 rounded-full text-slate-300">
           <Clock size={16} className="text-blue-400" />
-          <span>Timeout in: <span className="font-mono font-bold">{matchmakingTimeLeft}s</span></span>
+          <span>Timeout in: <span className="font-mono font-bold">{timeLeft}s</span></span>
         </div>
+        <button onClick={() => { cancelMatch(matchId); router.push('/online-battle'); }} className="mt-8 text-slate-400 hover:text-white transition">Cancel Matchmaking</button>
       </div>
     );
   }
@@ -388,8 +428,10 @@ export default function LivePvPBoard({ params }) {
     );
   }
 
-  const currentQ = matchData.questions[currentQIndex];
-  const isSuddenDeath = currentQIndex === 7;
+  // Ensure we safely map the question (especially for Sudden Death)
+  const isSuddenDeath = currentQIndex >= matchData.questions.length;
+  // If sudden death doesn't append an object, use the last question as fallback so it doesn't crash UI
+  const currentQ = matchData.questions[currentQIndex] || matchData.questions[matchData.questions.length - 1]; 
 
   return (
     <div className="min-h-screen bg-slate-950 p-4 pt-10 text-white relative overflow-hidden">
@@ -460,7 +502,7 @@ export default function LivePvPBoard({ params }) {
       <div className={`max-w-4xl mx-auto bg-slate-900 border rounded-3xl p-8 shadow-2xl relative overflow-hidden ${isSuddenDeath ? 'border-red-600 bg-red-950/20' : 'border-slate-700'}`}>
         {!isSuddenDeath && (
           <div className="absolute top-0 left-0 h-1 bg-slate-800 w-full">
-            <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${((currentQIndex) / 7) * 100}%` }}></div>
+            <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${((currentQIndex) / matchData.questions.length) * 100}%` }}></div>
           </div>
         )}
 
@@ -469,7 +511,7 @@ export default function LivePvPBoard({ params }) {
             <div className={`inline-flex items-center gap-2 px-2 py-1 rounded border mb-3 text-xs font-bold uppercase tracking-wider ${isSuddenDeath ? 'bg-red-900/50 border-red-500 text-red-300' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
                {isSuddenDeath ? "TIE-BREAKER" : currentQ.subject}
             </div>
-            <p className="text-slate-500 font-medium">Question {currentQIndex + 1} {isSuddenDeath ? "" : "of 7"}</p>
+            <p className="text-slate-500 font-medium">Question {currentQIndex + 1} {isSuddenDeath ? "" : `of ${matchData.questions.length}`}</p>
           </div>
           
           {/* Custom In-line Timer */}
@@ -508,7 +550,6 @@ export default function LivePvPBoard({ params }) {
          ))}
       </div>
 
-      {/* Global CSS animation needed for emotes */}
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes floatUp {
           0% { transform: translateY(0) scale(0.5); opacity: 1; }
