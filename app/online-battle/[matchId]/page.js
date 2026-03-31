@@ -4,7 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase"; 
 import PvPTimer from "@/components/PvPTimer";
 import { submitMatchResults, cancelMatch, savePlayerAnswer } from "@/app/actions/pvpActions"; 
-import { Loader2, Swords, X, Clock } from "lucide-react";
+import { Loader2, Swords, X, Clock, Flame } from "lucide-react";
 
 export default function LivePvPBoard({ params }) {
   const resolvedParams = use(params);
@@ -17,8 +17,12 @@ export default function LivePvPBoard({ params }) {
 
   const [matchData, setMatchData] = useState(null);
   const [currentQIndex, setCurrentQIndex] = useState(0);
+  
+  // Score and Combo States
   const [myScore, setMyScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
+  const [myCombo, setMyCombo] = useState(0);
+  const [opponentCombo, setOpponentCombo] = useState(0);
   
   const [gameStatus, setGameStatus] = useState("loading"); 
   const [opponentName, setOpponentName] = useState("Opponent");
@@ -28,7 +32,6 @@ export default function LivePvPBoard({ params }) {
   const [timeLeft, setTimeLeft] = useState(60);
   const [questionStartTime, setQuestionStartTime] = useState(0);
 
-  // Use a ref to hold our active channel instance so we can reliably send messages
   const channelRef = useRef(null);
 
   useEffect(() => {
@@ -54,11 +57,14 @@ export default function LivePvPBoard({ params }) {
   // WebSocket Listeners
   useEffect(() => {
     const channel = supabase.channel(`match_${matchId}`);
-    channelRef.current = channel; // Store in ref for global access
+    channelRef.current = channel; 
 
     channel
       .on('broadcast', { event: 'score_update' }, (payload) => {
-        if (payload.userId !== userId) setOpponentScore(payload.score);
+        if (payload.userId !== userId) {
+          setOpponentScore(payload.score);
+          setOpponentCombo(payload.combo); // Sync opponent's combo
+        }
       })
       .on('broadcast', { event: 'player_joined' }, (payload) => {
         if (payload.userId !== userId) {
@@ -79,7 +85,6 @@ export default function LivePvPBoard({ params }) {
         renderFinalResults(payload.match);
       })
       .subscribe((status) => {
-        // Only send the join event AFTER we are fully connected
         if (status === 'SUBSCRIBED') {
           channel.send({ type: 'broadcast', event: 'player_joined', payload: { userId, userName } });
         }
@@ -88,22 +93,30 @@ export default function LivePvPBoard({ params }) {
     return () => { supabase.removeChannel(channel); };
   }, [matchId, userId, userName, router]); 
 
-  // Fallback Polling: In case the WebSocket message drops, periodically check the server if waiting
+  // Fallback Polling
   useEffect(() => {
     let pollInterval;
-    if (gameStatus === "waiting_for_opponent") {
+    if (gameStatus === "waiting" || gameStatus === "waiting_for_opponent") {
       pollInterval = setInterval(async () => {
         try {
           const res = await fetch(`/api/matches/${matchId}`);
           const data = await res.json();
-          if (data.success && data.match?.status === "completed") {
-            renderFinalResults(data.match);
+          
+          if (data.success && data.match) {
+            if (gameStatus === "waiting" && data.match.player2 && data.match.player2.userId) {
+              const oppName = data.match.player1.userId === userId ? data.match.player2.name : data.match.player1.name;
+              setOpponentName(oppName || "Opponent");
+              setGameStatus("opponent_found");
+            }
+            if (gameStatus === "waiting_for_opponent" && data.match.status === "completed") {
+              renderFinalResults(data.match);
+            }
           }
         } catch (err) { console.error("Polling error:", err); }
       }, 3000); 
     }
     return () => clearInterval(pollInterval);
-  }, [gameStatus, matchId]);
+  }, [gameStatus, matchId, userId]);
 
   useEffect(() => {
     if (gameStatus !== "waiting") return;
@@ -152,7 +165,6 @@ export default function LivePvPBoard({ params }) {
     const res = await submitMatchResults(matchId, userId, finalScore);
 
     if (res.success && res.isComplete) {
-      // Use the existing active channel ref to broadcast
       channelRef.current?.send({ 
         type: 'broadcast', 
         event: 'match_completed', 
@@ -172,6 +184,14 @@ export default function LivePvPBoard({ params }) {
   };
 
   const handleTimeUp = async () => {
+    // Timeout resets streak to 0
+    setMyCombo(0);
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'score_update',
+      payload: { userId, score: myScore, combo: 0 }
+    });
+
     await savePlayerAnswer(matchId, userId, { questionIndex: currentQIndex, selectedOption: null, timeTaken: 30 });
     moveToNextQuestion(myScore);
   };
@@ -179,18 +199,32 @@ export default function LivePvPBoard({ params }) {
   const handleAnswer = async (optionId) => {
     const timeTaken = Math.floor((Date.now() - questionStartTime) / 1000);
     const isCorrect = matchData.questions[currentQIndex].correctAnswer === optionId;
+    
     let newScore = myScore;
+    let newCombo = myCombo;
     
     if (isCorrect) {
-      newScore = myScore + 10;
-      setMyScore(newScore);
+      newCombo += 1; // Increment streak
       
-      channelRef.current?.send({
-        type: 'broadcast',
-        event: 'score_update',
-        payload: { userId, score: newScore }
-      });
+      // Calculate multiplier
+      let pointsAwarded = 10;
+      if (newCombo === 2) pointsAwarded = 12; // 1.2x Multiplier
+      else if (newCombo >= 3) pointsAwarded = 15; // 1.5x Multiplier
+      
+      newScore = myScore + pointsAwarded;
+    } else {
+      newCombo = 0; // Reset streak on wrong answer
     }
+
+    setMyScore(newScore);
+    setMyCombo(newCombo);
+      
+    // Broadcast the updated score and combo
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'score_update',
+      payload: { userId, score: newScore, combo: newCombo }
+    });
 
     await savePlayerAnswer(matchId, userId, {
       questionIndex: currentQIndex,
@@ -307,22 +341,39 @@ export default function LivePvPBoard({ params }) {
   return (
     <div className="min-h-screen bg-slate-950 p-4 pt-10 text-white">
       <div className="max-w-4xl mx-auto flex justify-between items-center bg-slate-900/50 backdrop-blur p-4 rounded-2xl border border-slate-700/50 mb-8 sticky top-4 z-10">
+        
+        {/* Player 1 Stats */}
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center border border-blue-500/50">
              <span className="font-bold text-blue-400">P1</span>
           </div>
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{userName}</p>
-            <p className="text-2xl font-black text-blue-400 leading-none">{myScore}</p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-black text-blue-400 leading-none">{myScore}</p>
+              {myCombo >= 2 && (
+                 <span className="flex items-center text-xs font-bold text-orange-500 animate-pulse bg-orange-500/10 px-2 py-0.5 rounded-full border border-orange-500/30">
+                   <Flame size={12} className="mr-1" /> {myCombo >= 3 ? '1.5x' : '1.2x'}
+                 </span>
+              )}
+            </div>
           </div>
         </div>
         
         <div className="text-2xl font-black text-slate-600 italic">VS</div>
         
+        {/* Player 2 Stats */}
         <div className="flex items-center gap-4 text-right">
-          <div>
+          <div className="flex flex-col items-end">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{opponentName}</p>
-            <p className="text-2xl font-black text-red-400 leading-none">{opponentScore}</p>
+            <div className="flex items-baseline gap-2">
+              {opponentCombo >= 2 && (
+                 <span className="flex items-center text-xs font-bold text-orange-500 animate-pulse bg-orange-500/10 px-2 py-0.5 rounded-full border border-orange-500/30">
+                   <Flame size={12} className="mr-1" /> {opponentCombo >= 3 ? '1.5x' : '1.2x'}
+                 </span>
+              )}
+              <p className="text-2xl font-black text-red-400 leading-none">{opponentScore}</p>
+            </div>
           </div>
           <div className="w-12 h-12 rounded-full bg-red-600/20 flex items-center justify-center border border-red-500/50">
              <span className="font-bold text-red-400">P2</span>

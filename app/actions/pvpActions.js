@@ -107,7 +107,6 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
     const isPlayer1 = tempMatch.player1.userId === userId;
     const playerKey = isPlayer1 ? "player1" : "player2";
 
-    // 1. Atomically update THIS player's finish state
     const match = await Match.findOneAndUpdate(
       { _id: matchId },
       {
@@ -116,13 +115,11 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
           [`${playerKey}.score`]: clientReportedScore
         }
       },
-      { new: true } // Return updated doc
+      { new: true } 
     );
 
-    // 2. Safely check if BOTH are finished
     if (match.player1.finished && match.player2.finished && match.status !== "completed") {
       
-      // 3. Atomically lock the completion calculation to prevent race conditions
       const finalMatch = await Match.findOneAndUpdate(
         { _id: matchId, status: { $ne: "completed" } },
         { $set: { status: "completed" } },
@@ -130,17 +127,35 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
       );
 
       if (finalMatch) {
-        // I won the race condition lock! Perform calculations.
         let p1Score = 0; let p2Score = 0;
+        let p1Combo = 0; let p2Combo = 0; // Track combos for final calculation
 
+        // Calculate Player 1 Score with Multipliers
         finalMatch.player1.responses.forEach(res => {
           const actualAnswer = finalMatch.questions[res.questionIndex]?.correctAnswer;
-          if (res.selectedOption === actualAnswer) { res.isCorrect = true; p1Score += 10; }
+          if (res.selectedOption === actualAnswer) { 
+            res.isCorrect = true; 
+            p1Combo += 1;
+            if (p1Combo === 1) p1Score += 10;
+            else if (p1Combo === 2) p1Score += 12; // 1.2x
+            else if (p1Combo >= 3) p1Score += 15;  // 1.5x
+          } else {
+            p1Combo = 0; // Reset streak on wrong answer/timeout
+          }
         });
 
+        // Calculate Player 2 Score with Multipliers
         finalMatch.player2.responses.forEach(res => {
           const actualAnswer = finalMatch.questions[res.questionIndex]?.correctAnswer;
-          if (res.selectedOption === actualAnswer) { res.isCorrect = true; p2Score += 10; }
+          if (res.selectedOption === actualAnswer) { 
+            res.isCorrect = true; 
+            p2Combo += 1;
+            if (p2Combo === 1) p2Score += 10;
+            else if (p2Combo === 2) p2Score += 12; // 1.2x
+            else if (p2Combo >= 3) p2Score += 15;  // 1.5x
+          } else {
+            p2Combo = 0; // Reset streak on wrong answer/timeout
+          }
         });
 
         finalMatch.player1.score = p1Score;
@@ -155,7 +170,6 @@ export async function submitMatchResults(matchId, userId, clientReportedScore) {
 
         return { success: true, isComplete: true, match: JSON.parse(JSON.stringify(finalMatch)) };
       } else {
-        // The other process already locked and finalized it, just fetch the result
         const completedMatch = await Match.findById(matchId);
         return { success: true, isComplete: true, match: JSON.parse(JSON.stringify(completedMatch)) };
       }
